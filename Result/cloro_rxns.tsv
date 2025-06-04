@@ -1,0 +1,20 @@
+enzyme	ec_number	rxn_ID
+Glutamyl-tRNA synthetase	(1)    EC 6.1.1.17	rxn19824_c0
+Glutamyl-tRNA reductase	(2)       EC 1.2.1.70	rxn19846_d0_f
+Glutamyl-tRNA reductase	(2)       EC 1.2.1.70	rxn19846_d0_r
+Glutamate-1-semialdehyde aminotransferase	(3)         EC 5.4.3.8	rxn01629_d0_f
+Glutamate-1-semialdehyde aminotransferase	(3)         EC 5.4.3.8	rxn01629_d0_r
+Porphobilinogen synthase	(4)       EC 4.2.1.24	rxn00029_d0
+Porphobilinogen deaminase	(5)       EC 2.5.1.61	rxn00060_d0
+Uroporphyrinogen-III synthase	(6)        EC 4.2.1.75	rxn02264_d0_f
+Uroporphyrinogen-III synthase	(6)       EC 4.2.1.75	rxn02264_d0_r
+Uroporphyrinogen III decarboxylase	(7)    EC 4.1.1.37	rxn02288_d0
+Coproporphyrinogen III oxidase aerobic	(8)     EC 1.3.3.3	rxn02303_d0
+Protoporphyrinogen IX oxidase aerobic HemY	(9)         EC 1.3.3.4	rxn02304_d0_f
+Protoporphyrinogen IX oxidase aerobic HemY	(9)         EC 1.3.3.4	rxn02304_d0_r
+Protoporphyrin IX Mg-chelatase subunit D	(10)      EC 6.6.1.1	rxn02733_d0_f
+Protoporphyrin IX Mg-chelatase subunit D	(10)       EC 6.6.1.1	rxn02733_d0_r
+Mg-protoporphyrin O-methyltransferase	(11)      EC 2.1.1.11	rxn02959_d0_f
+Mg-protoporphyrin O-methyltransferase	(11)      EC 2.1.1.11	rxn02959_d0_r
+Mg protoporphyrin IX monomethyl ester oxidative cyclase (aerobic)	(12) EC 1.14.13.81	rxn04152_d0_f
+Mg protoporphyrin IX monomethyl ester oxidative cyclase (aerobic)	(12) EC 1.14.13.81	rxn04152_d0_r
