@@ -772,8 +772,8 @@ def run_main(spc, genotype, time_stamp, trmt_cols, savePath, kapp_vbf_path, mode
     wide_pred_df.to_csv(prediction_file.replace(".tsv", "_fba_Vbf_RS_wide.tsv"), sep="\t", index=False)
     # return True
     
-    print(abc)
-    generate_CDFs(pred_df, trmt_cols, time_stamp, savePath)
+    # print(abc)
+    # generate_CDFs(pred_df, trmt_cols, time_stamp, savePath)
     # print(abc)
     return True
 
@@ -862,7 +862,8 @@ def run_main(spc, genotype, time_stamp, trmt_cols, savePath, kapp_vbf_path, mode
 
 
 if __name__ == '__main__':
-    species = ['Poplar'] # ['Poplar', 'Sorghum']
+    # species = ['Poplar'] # ['Poplar', 'Sorghum']
+    species = ['Poplar', 'Sorghum']
     msrs = ['Pred', 'FBA', 'Vbf', 'RS']
     control_id = "Control"
     projCols = ['tissue', 'treatment', 'time_stamp']
@@ -874,11 +875,13 @@ if __name__ == '__main__':
     day = "all"
 
     # resultFoldr = 'Apr19_sv15_allAt1000_noCustRelab/'
-    resultFoldr = 'Apr19_sv15_allAtVbfAndMean_VposRelu/'
-    resultFoldr = 'May15_sv15_allAtVbfAndMean_VposRelu_looplessFluxCoupling/'
+    # resultFoldr = 'Apr19_sv15_allAtVbfAndMean_VposRelu/'
+    # resultFoldr = 'May15_sv15_allAtVbfAndMean_VposRelu_looplessFluxCoupling/'
+    resultFoldr = 'Jul4_startVbfandMean_sv15_VposHardConstraint_loopless/'
 
-    dsInputFoldr = 'Apr19_maxControl_misexRelab_modelGenesCap_FVAnDup'
-    dsInputFoldr = "May14_maxControl_misexRelab_modelGenesCap_loopless"
+    # dsInputFoldr = 'Apr19_maxControl_misexRelab_modelGenesCap_FVAnDup'
+    # dsInputFoldr = "May14_maxControl_misexRelab_modelGenesCap_loopless"
+    dsInputFoldr = "July3_maxControl_misexRelab_modelGenesCap_loopless_SorghumPoplar"
     # Treatments columns on file
     trmt_cols = treatments
     if day == 'all': 
@@ -892,9 +895,10 @@ if __name__ == '__main__':
     for spc in species: 
         ## Duplicated metabolic model 
         spcName = sName[spc]
-        model_name = f"{spcName}_plastid_Thylakoid_Reconstruction_ComplexFix_070224_duplicated.xml"
+        # model_name = f"{spcName}_plastid_Thylakoid_Reconstruction_ComplexFix_070224_duplicated.xml"
+        # model_name = f"{spcName}_plastid_Thylakoid_Reconstruction_ComplexFix_RevFix3_250512_duplicated.xml"
 
-        model_name = f"{spcName}_plastid_Thylakoid_Reconstruction_ComplexFix_RevFix3_250512_duplicated.xml"
+        model_name = f"{spcName}_plastid_Thylakoid_Reconstruction_ComplexFix_RevFix3_250617_duplicated.xml"
 
         model_path = os.path.join(project_root, 'Dataset_input', dsInputFoldr, model_name)
 
@@ -912,12 +916,13 @@ if __name__ == '__main__':
             kapp_vbf_path = os.path.join(project_root, 'Dataset_input', dsInputFoldr, kapp_vbf_name)
 
             ## file to read model predictions from 
-            more = "_plastid_start1000All"
-            more = "_plastid_startVbf_custRelu"
-            more = "_plastid_startVbf_custRelu_loopless"
+            more = "plastid_start1000All"
+            more = "plastid_startVbf_custRelu"
+            more = "plastid_startVbf_custRelu_loopless"
+            more = "plastid_startVbfandMean_VposRelu_loopless"
             
             
-            prediction_file_name = f"{spc}_{genotype}_{time_stamp}_complexFix{more}_V_rxn_trmt.tsv"
+            prediction_file_name = f"{spc}_{genotype}_{time_stamp}_complexFix_{more}_V_rxn_trmt.tsv"
             prediction_file = os.path.join(project_root, "Result", resultFoldr, prediction_file_name)
 
             run_main(spc, genotype, time_stamp, trmt_cols, savePath, kapp_vbf_path, model_path, prediction_file, s_matrix_path, scores_path)

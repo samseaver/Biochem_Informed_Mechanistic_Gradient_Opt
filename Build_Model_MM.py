@@ -5,11 +5,6 @@ from time import time
 import datetime
 from Library.Build_Model import *
 
-DIRECTORY = './'
-font = 'arial'
-
-# printing the working directory files. One can check you see the same folders and files as in the git webpage.
-print(os.listdir(DIRECTORY))
 
 # We declare this function here and not in the
 # function-storing python file to modify it easily

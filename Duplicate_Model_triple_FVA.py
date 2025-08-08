@@ -12,166 +12,9 @@ from cobrakbase.core.kbase_object_factory import KBaseObjectFactory
 
 from cobra.io import read_sbml_model
 
-KBOF = KBaseObjectFactory()
-
-spc = "Poplar" # "Sorghum"
-fName = 'ptrich_4.1' if spc == "Poplar" else 'sbicolor_3.1.1'
-
-# expFolder = 'Apr19_maxControl_misexRelab_modelGenesCap_FVAnDup'
-expFolder = 'May14_maxControl_misexRelab_modelGenesCap_loopless'
-model_path = f"Dataset_input/{expFolder}/{fName}_plastid_Thylakoid_Reconstruction_ComplexFix_RevFix3_250512.json"
-
-# model_path = "/Users/selalaoui/Projects/QPSI_project/paper_repo/RNASeq_Enzyme_Abundance/data/metabolic_models/plastidial_models/ptrich_4.1_plastid_Thylakoid_Reconstruction_ComplexFix_RevFix3_250512.json"
-
-media_path = "Dataset_input/PlantPlastidialAutotrophicMedia_noATP_noADP.json"
-fluxCoupling = False
-
-model = KBOF.build_object_from_file(model_path, "KBaseFBA.FBAModel")
-co_media = KBOF.build_object_from_file(media_path, "KBaseBiochem.Media")
-model.medium = co_media
-
-# from cobra.io import write_sbml_model
-# solution = model.optimize()
-# print(solution)
-# write_sbml_model(model, model_path.replace('json', 'xml'))
-# print(abc)
-
-# In this case the local root of the repo is our working directory
-DIRECTORY = './'
-font = 'arial'
-
-# printing the working directory files. One can check you see the same folders and files as in the git webpage.
-print(os.listdir(DIRECTORY))
-
 from Library.Duplicate_Model import *
 
-# Print model stats 
-print(model.boundary)
-print(model.medium)
-print(model.objective)
-solution = model.optimize()
-print(solution)
-
-# Print the cobra model to file
-from cobra.io import write_sbml_model
-write_sbml_model(model, model_path.replace('json', 'xml'))
-print(model_path.replace('json', 'xml'))
-
-
-# %% markdown
-# ## Checking the objective of the model
-# Optional step for exploring how the biomass is encoded. In some models, several biomass reactions are available and one has to make sure using the right one.
-# %% codecell
-for reac in model.reactions:
-     if "biomass" in reac.id or "BIOMASS" in reac.id:
-        print(reac)
-
-
-# ## Screen outflowing and inflowing reactions
-# For each reaction that has different compartments in reactants and products (we call it "transfer reactions"), we annotate the reaction with a suffix "i" for inflowing (None --> e --> p --> c --> m) and "o" for outflowing (m --> c --> p --> e --> None). When the compartment-changing of metabolites is balanced, or not present, we use different suffix: "for" as in forward, designating the default way of the reaction (positive flux) and "rev" as in reverse, designating the opposite way (negative flux). We reverse the products and reactants so that the same reactions happen, ensuring that we have a positive flux for all reactions.
-#
-# To do so, we first define a dictionary for mapping which (reactant compartment, product compartment) pair is matching which suffix: "io_dict".
-#
-# Some reactions are problematic because they are showing both inflow and outflow simultaneously. To tackle this, we ignore the small molecules listed in "unsignificant_mols".
-#
-# For each reaction, we count the number of "inflowing" and "outflowing" pairs, and the way the reaction happens (forward, backward, reversible or other).
-
-# "i" for inflowing (None --> e --> c --> d) and "o" for outflowing (d --> c --> e --> None)
-
-io_dict = {"_i": [(None, "e0"), (None, "c0"), ("e0","c0"), ("c0", "d0"), ("e0", "d0")],
-           "_o": [("c0", None), ("e0", None), ("d0", "e0"), ("d0", "c0"), ("c0", "e0")]}
-
-unsignificant_mols = ["h_p", "h_c", "pi_c", "pi_p", "adp_c", "h2o_c", "atp_c"]
-
-# Will print a dictionary counting the reactions in reversible, forward, backward
-reac_id_to_io_count_and_way = screen_out_in(model, io_dict, unsignificant_mols)
-
-# We duplicate all exchange reactions (excepted sink reactions) and reversible 
-# internal reactions (not unidirectional ones). We get the suffix '_i' for compartment 
-# changing reaction from the exterior to the cytoplasm, and '_o' for the other way. 
-# We also use the suffix "_f" and "_r" for forward and reverse duplicated reactions 
-# that do not change compartment, or show equal compartment exchanges.
-dup_co_model = duplicate_model(model, reac_id_to_io_count_and_way)
-
-
-# Correct the medium of the duplicated model, all non-default medium exchange 
-# reactions put at 1e-300, so they are at a value very close to 0 but still appear
-#  in the medium object.
-default_med = model.medium
-new_med = dup_co_model.medium
-correct_med =  correct_duplicated_med(default_med, new_med)
-dup_co_model.medium = correct_med
-print(dup_co_model.medium)
-
-# ## Medium check-up (default model V.S. duplicated-reaction model)
-# Here we compare the results with randomized medium objects for both models, 
-# reporting the absolute difference between the two.
-for i in range(10):
-    # print('_'*50)
-    s, new_s = change_medium(model, dup_co_model, i*3)
-    if s != None and new_s != None:
-        print(s, new_s, "diff = ", abs(s-new_s))
-    elif s != None:
-        print("infeasible duplicated medium")
-    elif new_s != None:
-        print("infeasible default medium")
-    elif s == None and new_s == None:
-        print("Both medium are impossible")
-
-
-# ## Saving the duplicated-reactions model
-dup_co_model.repair() # rebuild indices and pointers in the model if necessary
-
-
-
-## restrict media
-## -- Plastidial model media -- remove phosphate
-remove_med = ["EX_cpd00067_e0_i", "EX_cpd00007_e0_i", "EX_cpd00008_e0_i", "EX_cpd00013_e0_o", "EX_cpd00048_e0_o", "EX_cpd11632_e0_o", "EX_cpd00011_e0_o", "EX_cpd00001_e0_o", "EX_cpd00002_e0_o", "EX_cpd00009_e0_o", "EX_cpd00002_e0_i", "EX_cpd00008_e0_o"]
-# # , "EX_cpd00009_e0_i"
-## -- Full model media
-# remove_med = ["EX_cpd00067_e0_i", "EX_cpd00007_e0_i", "EX_cpd00008_e0_i", "EX_cpd00008_e0_o", "EX_cpd11632_e0_o", "EX_cpd00048_e0_o", "EX_cpd00013_e0_o", 'EX_cpd00073_e0_o', 'EX_cpd00073_e0_i', "EX_cpd00011_e0_o", "EX_cpd00001_e0_o", "EX_cpd00002_e0_o", 'EX_cpd00005_e0_o', 'EX_cpd00006_e0_i', 'EX_cpd00009_e0_o', 'EX_cpd00254_e0_o', 'EX_cpd10515_e0_o', 'EX_cpd11624_e0_i', 'EX_cpd11624_e0_o', 'EX_cpd00098_e0_i', 'EX_cpd00098_e0_o',  'EX_cpd27368_e0_i', 'EX_cpd27368_e0_o',  'EX_cpd00204_e0_i', 'EX_cpd00075_e0_i', 'EX_cpd00075_e0_o', 'EX_cpd00076_e0_i', 'EX_cpd00076_e0_o',  'EX_cpd00209_e0_i', 'EX_cpd00209_e0_o', "EX_cpd00205_e0_o", "EX_cpd00099_e0_o"]
-# # EX_cpd00009_e0_i
-
-solution = dup_co_model.optimize()
-print(solution)
-
-for med in remove_med:
-    print(med)
-    dup_co_model.remove_reactions(med)
-    solution = dup_co_model.optimize()
-    
-    print(solution)
-    print("After restricting media, model has ", len(dup_co_model.reactions), " reactions")
-
-new_name = model_path[:-5] + "_duplicated" + model_path[-5:]
-new_name = new_name.replace('json', 'xml')
-cobra.io.write_sbml_model(dup_co_model, new_name)
-
-solution = model.optimize()
-## -- Full model
-# cpds = ['cpd03091_c0', 'cpd03091_d0', 'cpd03091_m0', 'cpd02701_m0', 'cpd02701_c0']
-# for cpd_id in cpds:
-# 	if cpd_id in model.metabolites:
-# 	    cpd = model.metabolites.get_by_id(cpd_id)
-# 	    print(cpd.summary())
-# print(solution)
-
-solution = dup_co_model.optimize()
-print(solution)
-print("Duplicated model's location: " + new_name)
-print("Total number of reactions: ", len(dup_co_model.reactions))
-
-for reaction in dup_co_model.reactions:
-    if('SK' in reaction.id):
-        print(reaction.id)
-        
-print(abc)
-# cpds = ['cpd03091_c0', 'cpd03091_d0', 'cpd03091_m0', 'cpd02701_m0', 'cpd02701_c0']
-# for cpd_id in cpds:
-# 	if cpd_id in model.metabolites:
-# 	    cpd = dup_co_model.metabolites.get_by_id(cpd_id)
-# 	    print(cpd.summary())
-if fluxCoupling: 
+def runFluxCoupling(model, dup_co_model, model_path):
 	models = {'org': model, 'dup': dup_co_model}
 	for type, mdl in models.items():
 		start = time.time()
@@ -231,3 +74,133 @@ if fluxCoupling:
 		timeD = end - start
 		
 		print("Time elapsed: ", str(datetime.timedelta(seconds=timeD)))
+
+def generateCobraModel(model_path, media_path):
+	print('abc2')
+	KBOF = KBaseObjectFactory()
+	model = KBOF.build_object_from_file(model_path, "KBaseFBA.FBAModel")
+	co_media = KBOF.build_object_from_file(media_path, "KBaseBiochem.Media")
+	model.medium = co_media
+	return model
+
+def run_duplicate_model(param, remove_med, fluxCoupling=False): 
+	spc = param.spc 
+	expFolder = param.expFolder
+	model_path = param.model_path
+	media_path = param.media_path
+
+	# generate COBRA model using cobrakbase
+	model = generateCobraModel(model_path, media_path)
+	
+	# Print model opt solution 
+	solution = model.optimize()
+	print(solution)
+
+	# Print the cobra model to file
+	from cobra.io import write_sbml_model
+	write_sbml_model(model, model_path.replace('json', 'xml'))
+	print("SBML model has been saved to: ", model_path.replace('json', 'xml'))
+
+
+	# ## Checking the objective of the model
+	# Optional step for exploring how the biomass is encoded. In some models, several biomass reactions are available and one has to make sure using the right one.
+	for reac in model.reactions:
+	     if "biomass" in reac.id or "BIOMASS" in reac.id:
+	        print(reac)
+
+
+	# ## Screen outflowing and inflowing reactions
+	# For each reaction that has different compartments in reactants and products (we call it "transfer reactions"), we annotate the reaction with a suffix "i" for inflowing (None --> e --> p --> c --> m) and "o" for outflowing (m --> c --> p --> e --> None). When the compartment-changing of metabolites is balanced, or not present, we use different suffix: "for" as in forward, designating the default way of the reaction (positive flux) and "rev" as in reverse, designating the opposite way (negative flux). We reverse the products and reactants so that the same reactions happen, ensuring that we have a positive flux for all reactions.
+	#
+	# To do so, we first define a dictionary for mapping which (reactant compartment, product compartment) pair is matching which suffix: "io_dict".
+	#
+	# Some reactions are problematic because they are showing both inflow and outflow simultaneously. To tackle this, we ignore the small molecules listed in "unsignificant_mols".
+	#
+	# For each reaction, we count the number of "inflowing" and "outflowing" pairs, and the way the reaction happens (forward, backward, reversible or other).
+
+	# "i" for inflowing (None --> e --> c --> d) and "o" for outflowing (d --> c --> e --> None)
+
+	io_dict = {"_i": [(None, "e0"), (None, "c0"), ("e0","c0"), ("c0", "d0"), ("e0", "d0")],
+	           "_o": [("c0", None), ("e0", None), ("d0", "e0"), ("d0", "c0"), ("c0", "e0")]}
+
+	unsignificant_mols = ["h_p", "h_c", "pi_c", "pi_p", "adp_c", "h2o_c", "atp_c"]
+
+	# Will print a dictionary counting the reactions in reversible, forward, backward
+	reac_id_to_io_count_and_way = screen_out_in(model, io_dict, unsignificant_mols)
+
+	# We duplicate all exchange reactions (excepted sink reactions) and reversible 
+	# internal reactions (not unidirectional ones). We get the suffix '_i' for compartment 
+	# changing reaction from the exterior to the cytoplasm, and '_o' for the other way. 
+	# We also use the suffix "_f" and "_r" for forward and reverse duplicated reactions 
+	# that do not change compartment, or show equal compartment exchanges.
+	dup_co_model = duplicate_model(model, reac_id_to_io_count_and_way)
+
+
+	# Correct the medium of the duplicated model, all non-default medium exchange 
+	# reactions put at 1e-300, so they are at a value very close to 0 but still appear
+	#  in the medium object.
+	default_med = model.medium
+	new_med = dup_co_model.medium
+	correct_med =  correct_duplicated_med(default_med, new_med)
+	dup_co_model.medium = correct_med
+	print(dup_co_model.medium)
+
+	# ## Medium check-up (default model V.S. duplicated-reaction model)
+	# Here we compare the results with randomized medium objects for both models, 
+	# reporting the absolute difference between the two.
+	for i in range(10):
+	    # print('_'*50)
+	    s, new_s = change_medium(model, dup_co_model, i*3)
+	    if s != None and new_s != None:
+	        print(s, new_s, "diff = ", abs(s-new_s))
+	    elif s != None:
+	        print("infeasible duplicated medium")
+	    elif new_s != None:
+	        print("infeasible default medium")
+	    elif s == None and new_s == None:
+	        print("Both medium are impossible")
+
+
+	# ## Saving the duplicated-reactions model
+	dup_co_model.repair() # rebuild indices and pointers in the model if necessary
+
+
+	## restrict media
+	solution = dup_co_model.optimize()
+	print(solution)
+
+	for med in remove_med:
+	    print(med)
+	    dup_co_model.remove_reactions(med)
+	    solution = dup_co_model.optimize()
+	    
+	    print(solution)
+	    print("After restricting media, model has ", len(dup_co_model.reactions), " reactions")
+
+	new_name = model_path[:-5] + "_duplicated" + model_path[-5:]
+	new_name = new_name.replace('json', 'xml')
+	cobra.io.write_sbml_model(dup_co_model, new_name)
+
+	solution = model.optimize()
+	## -- Full model
+	# cpds = ['cpd03091_c0', 'cpd03091_d0', 'cpd03091_m0', 'cpd02701_m0', 'cpd02701_c0']
+	# for cpd_id in cpds:
+	# 	if cpd_id in model.metabolites:
+	# 	    cpd = model.metabolites.get_by_id(cpd_id)
+	# 	    print(cpd.summary())
+	# print(solution)
+
+	solution = dup_co_model.optimize()
+	print(solution)
+	print("Duplicated model's location: " + new_name)
+	print("Total number of reactions: ", len(dup_co_model.reactions))
+
+	for reaction in dup_co_model.reactions:
+	    if('SK' in reaction.id):
+	        print(reaction.id)
+	        
+
+	if fluxCoupling: 
+		runFluxCoupling(model, dup_co_model, model_path)
+
+

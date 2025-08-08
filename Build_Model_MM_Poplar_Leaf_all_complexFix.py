@@ -58,7 +58,7 @@ np.random.seed(seed=seed)
 spc = 'Poplar'
 day = "all"
 tissue = "Leaf"
-trainname = f"plastidial_model_duplicated_restricted_media_noATP_noADP_noP_UB_25_{spc}_{tissue}_{day}_complexFix"
+trainname = f"plastidial_model_duplicated_restricted_media_noATP_noADP_noP_UB_25_{spc}_{tissue}_{day}_complexFix_loopless"
 
 loss_outfile="Result/"+trainname+"_loss"
 targets_outfile= "Result/"+trainname+"_targets"
@@ -77,7 +77,8 @@ biomass_max = 200.0
 
 start = time.time()
 
-id = f'{spc}_{tissue}_{day}_complexFix_plastid_startVbf_custRelu_loopless'
+id = f'{spc}_{tissue}_{day}_complexFix_plastid_startVbfandMean_VposRelu_loopless'
+
 
 # Create model and run GD for X and Y randomly drawn from trainingfile
 trainingfile = DIRECTORY+'Dataset_model/'+trainname

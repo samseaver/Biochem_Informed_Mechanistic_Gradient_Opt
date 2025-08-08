@@ -119,8 +119,7 @@ def load_scores_objKapp_relabVbf(scores_file, ctrl_trmt= 'Control', useRelab=Tru
 
     return relab_scores_df, control
 
-
-def load_scores_relabKapp_objVbf(scores_file, ctrl_trmt= 'Control', useRelab=True, day='all', value_col='value', trmt_column='treatment', verbose=False):
+def load_scores_relabKapp_objVbf(scores_file, relab_scores_file='', ctrl_trmt= 'Control', useRelab=True, day='all', value_col='value', trmt_column='treatment', other_colm='tissue', grpr3='Leaf', verbose=False):
     
     sep = '\t' if '.tsv' in scores_file else ','
     scores_df = pa.read_csv(scores_file, sep = sep)
@@ -145,6 +144,9 @@ def load_scores_relabKapp_objVbf(scores_file, ctrl_trmt= 'Control', useRelab=Tru
  
     relab_scores_df[value_col] = relab_scores_df[value_col].astype('float')
     #  --> Use control treatment only
+    print(relab_scores_df.columns)
+    print(relab_scores_df.head())
+    print(other_colm, grpr3)
     control = relab_scores_df[(relab_scores_df[trmt_column] == ctrl_trmt) &
                             (relab_scores_df[other_colm] == grpr3)]
 
@@ -196,10 +198,9 @@ def duplicate_Vbf_values(model_file, Vbf_df, verbose=False):
 
     return Vbf_df[clms]
 
-
-def generate_all_df(day, fluxes_file, scores_file, relab_scores_file="", value_col='value', trmt_column='treatment', ctrl_trmt='Control', useRelab=True, verbose=False):
+def generate_all_df(day, fluxes_file, scores_file, relab_scores_file="", value_col='value', trmt_column='treatment', ctrl_trmt='Control', other_colm='tissue', grpr3='Leaf', useRelab=True, verbose=False):
     # Reaction score for non-duplicated model
-    scores_df, control = load_scores_relabKapp_objVbf(scores_file, ctrl_trmt, useRelab, day, value_col, trmt_column, verbose)
+    scores_df, control = load_scores_relabKapp_objVbf(scores_file, relab_scores_file, ctrl_trmt, useRelab, day, value_col, trmt_column,other_colm=other_colm, grpr3=grpr3, verbose=verbose)
     # Fluxes for duplicated model
     fluxes_dup = load_fluxes(fluxes_file)
 
@@ -330,7 +331,7 @@ def vbf_histo2(Vbf_df, treatments):
         Vbf_df_temp = Vbf_df_temp[(Vbf_df_temp['score_'+condition] > 0) & (Vbf_df_temp['mean_flux'] >= 0) & (Vbf_df_temp['v_'+condition] <= 0)]
 
         print(len(Vbf_df_temp['rxn_ID'].unique()))
-        print(abc)
+        # print(abc)
 
         trmt, day = condition.split('_')[0], condition.split('_')[1]
 
@@ -360,7 +361,7 @@ def vbf_histo2(Vbf_df, treatments):
           
     fig.show()
 
-    print(abc)
+    # print(abc)
 
 def vbf_hists(Vbf_df, treatments): 
     Vbf_df_long = pa.melt(Vbf_df, id_vars=['rxn_ID', 'mean_flux'], value_vars=list(Vbf_df.filter(regex="v_*|score_*")))
@@ -422,63 +423,63 @@ def vbf_hists(Vbf_df, treatments):
 
     print(abc)
 
-def save_to_file(Vbf_df, spc, grpr3, day, expFolder):
+def save_to_file(Vbf_df, spc, grpr3, day, saveTo, useRelab=False):
     # Write to file
     v_colms = [x for x in Vbf_df.columns if 'v_' in x]
     v_colms = ['rxn_ID'] + v_colms
     name = [spc, 'complexFix', grpr3, day, 'restrMedia', 'Vbf', 'maxCtrl']
-    if 'relab' in scores_file:
+    if useRelab:
         name = name + ['mixedRelab']
     if 'atha' in spc:
         name = name + ['fullmodel']
 
-    Vbf_df[v_colms].to_csv(project_root+"Dataset_input/"+expFolder+"_".join(name)+".csv", index=False)
-    Vbf_df.to_csv(project_root+"Dataset_input/"+expFolder+"_".join(name+['kapp'])+".csv", index=False)
+    Vbf_df[v_colms].to_csv(saveTo, index=False)
+    saveTo = saveTo.replace(".csv", "kapp.csv")
+    Vbf_df.to_csv(saveTo, index=False)
 
-if __name__ == '__main__':
-    spc, day, grpr3, FVA = "Sorghum", "all", "Leaf", "plastid_org" #'C24' or 'TSU', 'atha'
-    spc, day, grpr3, FVA = "Poplar", "all", "Leaf", "plastid_org" #'C24' or 'TSU', 'atha'
-    treatments = []
-    expFolder = 'May14_maxControl_misexRelab_modelGenesCap_loopless/'
+def generate_Vbf(param):
+    spc = param.spc
+    day = param.time_stamp
+    grpr3 = param.other_colm_val
+    treatments = param.treatments
+    expFolder = param.expFolder
     verbose=False
 
+
+    ctrl_trmt = param.ctrl_trmt
+    other_colm = param.other_colm
+    value_col = param.value_col
+    useRelab = param.useRelab
+    trmt_column = param.trmt_column
+
     ## FVA fluxes
-    fluxes_file = project_root+f"Dataset_input/{expFolder}Loopless_RevFix3_FVA_Output_Poplar_plastid.tsv"
-
-    if 'atha' in spc:
-        treatments = ['FRZ']
-        ctrl_trmt = 'CTL'
-        other_colm = 'genotype'
-        value_col = 'value'
-        useRelab = False
-        trmt_column = 'treatment'
-        sName = 'Athaliana'
-    else:
-        time_points = ["02d", "04d", "07d", "14d", "21d"]
-        trmts = ['Control', 'FeLim', 'FeEX', 'ZnLim', 'ZnEx']
-        treatments = [trmt+"_"+tp for trmt in trmts for tp in time_points]
-
-        ctrl_trmt = 'Control'
-        other_colm = 'tissue'
-        value_col = 'value'
-        useRelab = True
-        trmt_column = 'treatment'
-        sName = 'sbicolor_3.1.1' if spc == 'Sorghum' else 'ptrich_4.1'
+    fluxes_file = param.fluxes_file
 
     ## Relative abundance
-    relab_scores_file = project_root+f"Dataset_input/{expFolder}{spc}_relab_rxn_scores_tmm.csv"
+    relab_scores_file = param.relab_scores_file
     ## Objective abundance
-    scores_file = project_root+f"Dataset_input/{expFolder}{spc}_objective_abundance_{ctrl_trmt}.tsv"
+    scores_file = param.scores_file
     ## duplicated model
-    model_file = project_root+f"Dataset_input/{expFolder}{sName}_plastid_Thylakoid_Reconstruction_ComplexFix_RevFix3_250512_duplicated.xml"
+    model_file = param.model_path
+    model_file = model_file.replace(".json", "_duplicated.xml")
     
 
-    Vbf_df = generate_all_df(day, fluxes_file, scores_file,relab_scores_file, value_col, trmt_column, ctrl_trmt, useRelab, verbose)
-    temp = Vbf_df.describe([.1, .2, .25, .5, .75, .9, .95])
-    print(temp)
-    temp.to_csv('Vbf_stats.tsv', sep = '\t')
+    Vbf_df = generate_all_df(day, fluxes_file, scores_file,relab_scores_file, value_col, trmt_column, ctrl_trmt, other_colm, grpr3, useRelab, verbose)
+
+    # temp = Vbf_df.describe([.1, .2, .25, .5, .75, .9, .95])
+    # print(temp)
+    # temp.to_csv('Vbf_stats.tsv', sep = '\t')
 
     Vbf_df = duplicate_Vbf_values(model_file, Vbf_df, verbose)
+
+    save_to_file(Vbf_df, spc, grpr3, day, param.VbfFile, useRelab)
+
+
+
+if __name__ == '__main__':
+    from parametrs import Parameters_QPSI
+    param = Parameters_QPSI
+    generate_Vbf(param)
 
     vbf_histo2(Vbf_df, treatments)
     vbf_hist(Vbf_df, treatments)

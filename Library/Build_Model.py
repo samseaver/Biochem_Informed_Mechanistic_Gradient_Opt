@@ -772,15 +772,15 @@ def Loss_all(V, Vin, Vout, Vlb, parameter, gradient=False, wt=False, p_sv=1, sav
     L2, dL2 = Loss_SV(V, parameter.S, gradient=gradient, save=save)
     # print("L2, dL2: ", L2, dL2)
     # apply penalty
-    # dL2 = dL2 * p_sv
-    # L2 = L2 * p_sv
+    dL2 = dL2 * p_sv
+    L2 = L2 * p_sv
 
     L3, dL3 = Loss_Vin(V, parameter.Pin, Vin,
                        parameter.mediumbound, gradient=gradient)
     # print("L3, dL3: ", L3, dL3)
     L4, dL4 = Loss_Vpos(V, Vlb, gradient=gradient)
-    dL4 = dL4 * p_sv
-    L4 = L4 * p_sv
+    # dL4 = dL4 * p_sv
+    # L4 = L4 * p_sv
     # L2 = tf.multiply(L2, 10.0)
     # print("L4, dL4: ", L4, dL4)
     # L5, dL5 = Loss_Vout_obj(V, parameter=parameter, gradient=gradient)
@@ -961,7 +961,7 @@ def output_AMN(V, Vin, V0, Vlb, parameter, verbose=False):
 
     return outputs
 
-def Gradient_Descent(V, Vin, Vout, Vlb, parameter, mask, trainable=True, history=False, verbose=False):
+def Gradient_Descent(V, Vin, Vout, Vlb, parameter, mask, trainable=True, history=False, V0_init=-1, svp=15, hardConst=1, verbose=False):
     # Input:
     # S [m x n]: stoichiometric matrix
     # V [n]: the reaction flux vector
@@ -975,9 +975,10 @@ def Gradient_Descent(V, Vin, Vout, Vlb, parameter, mask, trainable=True, history
     save = False
     # Not history here if trainable
     history = False if trainable else history
-    svp = 15
+    
+    init = "Vbf_mean" if V0_init < 0 else str(V0_init)
+    name = parameter.trainingfile.split('/')[-1]+f"_noADP_noP_SVP{svp}_hard{hardConst}_V0{init}"
 
-    name = parameter.trainingfile.split('UB_')[1]+f"_noADP_noP_{svp}"
     wandb.init(
         # Set the project where this run will be logged
         project="omic_amn",
@@ -1002,11 +1003,13 @@ def Gradient_Descent(V, Vin, Vout, Vlb, parameter, mask, trainable=True, history
         # Update V with learn and decay rates
         diff = parameter.decay_rate * diff - parameter.learn_rate * dL
         V = V + diff
-        # V = np.maximum.reduce([V,Vout])
+        
         pre_relu_V = V
-        V = tf.keras.activations.relu(V)
-        # V = custom_ReLU(V, Vout, parameter.Pout)
-        # print(abc)
+        if hardConst == 1:
+            V = tf.keras.activations.relu(V)
+        if hardConst == 2:
+            V = custom_ReLU(V, Vout, parameter.Pout)
+        
         # Compile Loss history
         if history:
             Loss_mean, Loss_std = np.mean(L), np.std(L)
@@ -1033,7 +1036,7 @@ def Gradient_Descent(V, Vin, Vout, Vlb, parameter, mask, trainable=True, history
     wandb.finish()
     return pre_relu_V, Loss_mean_history, Loss_std_history
 
-def get_V0(inputs, parameter, targets, lower_bounds, trainable, verbose=False):
+def get_V0(inputs, parameter, targets, lower_bounds, trainable, V0_init=-1, verbose=False):
     # Get initial vector V0 from input and target
     # Return V0, Vin, Vout, mask
     # When target is not provided this function compute
@@ -1070,26 +1073,28 @@ def get_V0(inputs, parameter, targets, lower_bounds, trainable, verbose=False):
         # VinV = V when V < Vin, VinV = Vin when V > Vin
         VinV = relu * V0 + (ones-relu) * VinV
     V0 = tf.math.multiply(V0, mask) + VinV
-    Vout = tf.convert_to_tensor(np.float32(targets))
+    
+    if V0_init < 0:
+        # make intial flux equal to Vbf or avg Vbf 
+        # if ('vbf' in parameter.method.lower()):
+        Vout = tf.convert_to_tensor(np.float32(targets))
+        V0 = V0 + Vout
 
-    # make intial flux equal to Vbf or avg Vbf 
-    # if ('vbf' in parameter.method.lower()):
-    V0 = V0 + Vout
+        # set a threshold of the lowest Vbf to replace by the average
+        threshold = 1e-6  
+        # compute Vbf mean 
+        Vbf_mean = tf.reduce_mean(Vout)
+        print(Vbf_mean)
 
-    # set a threshold of the lowest Vbf to replace by the average
-    threshold = 1e-6  
-    # compute Vbf mean 
-    Vbf_mean = tf.reduce_mean(Vout)
-    print(Vbf_mean)
+        # Replace all values in V0 less than the threshold with Vbf_mean
+        V0 = tf.where(V0 < threshold, Vbf_mean, V0)
+        # # for exact match, use this: 
+        # V0 = tf.where(tf.equal(V0, 0), tf.constant(Vbf_mean, dtype=V0.dtype), V0)
+    
+    if V0_init > 0: 
+        # set everything to 1000\Vbf_mean
+        V0 = tf.where(V0 >= 0, V0_init, V0)
 
-    # Replace all values in V0 less than the threshold with Vbf_mean
-    V0 = tf.where(V0 < threshold, Vbf_mean, V0)
-    # # for exact match, use this: 
-    # V0 = tf.where(tf.equal(V0, 0), tf.constant(Vbf_mean, dtype=V0.dtype), V0)
-
-    ## REMOVE
-    # set everything to 1000\Vbf_mean
-    # V0 = tf.where(V0 > 0, Vbf_mean, V0)
 
     Vlb = tf.convert_to_tensor(np.float32(lower_bounds))
     mask = ones if parameter.mediumbound == 'UB' else mask
@@ -1098,7 +1103,7 @@ def get_V0(inputs, parameter, targets, lower_bounds, trainable, verbose=False):
 
     return V0, Vin, Vout, Vlb, mask
 
-def QP_layers(inputs, parameter, targets = np.asarray([]).reshape(0,0), lower_bounds=np.asarray([]).reshape(0,0), trainable=True, history=False, verbose=False):
+def QP_layers(inputs, parameter, targets = np.asarray([]).reshape(0,0), lower_bounds=np.asarray([]).reshape(0,0), trainable=True, history=False, V0_init=-1, svp=15, hardConst=1, verbose=False):
     # Build and return an architecture using GD
     # The function is used with and without targets
     # - With targets there is no training set and GD is run
@@ -1113,7 +1118,7 @@ def QP_layers(inputs, parameter, targets = np.asarray([]).reshape(0,0), lower_bo
     # Outputs:
     # - ouput_AMN (see function, and Loss (mean and std)
 
-    V0, Vin, Vout, Vlb, mask = get_V0(inputs, parameter, targets, lower_bounds, trainable, verbose=verbose)
+    V0, Vin, Vout, Vlb, mask = get_V0(inputs, parameter, targets, lower_bounds, trainable, V0_init=V0_init, verbose=verbose)
 
     print("V0: ", V0.shape)
     print("Vin: ", Vin.shape)
@@ -1122,7 +1127,7 @@ def QP_layers(inputs, parameter, targets = np.asarray([]).reshape(0,0), lower_bo
     print("mask: ", mask.shape)
     # print(abc)
 
-    V, Loss_mean, Loss_std = Gradient_Descent(V0, Vin, Vout, Vlb, parameter, mask, trainable=trainable, history=history, verbose=verbose)
+    V, Loss_mean, Loss_std = Gradient_Descent(V0, Vin, Vout, Vlb, parameter, mask, trainable=trainable, history=history, V0_init=V0_init, svp=svp, hardConst=hardConst, verbose=verbose)
     outputs = output_AMN(V, Vin, V0, Vlb, parameter, verbose=verbose)
 
     return outputs, Loss_mean, Loss_std
@@ -1349,7 +1354,7 @@ def get_flux_output(param, output):
                     param.Y.shape[1]+NBR_CONSTRAINT+len_fluxes) (output)
     return Vf
 
-def run_MM_QP(parameter, loss_outfile=None, targets_outfile=None, history=True, verbose=False):
+def run_MM_QP(parameter, loss_outfile=None, targets_outfile=None, history=True, V0_init=-1, svp=15, hardConst=1, verbose=False):
     # Solve LP or QP without training
     # inputs:
     # - problem parameter, history flag
@@ -1367,8 +1372,8 @@ def run_MM_QP(parameter, loss_outfile=None, targets_outfile=None, history=True, 
 
     # run QP
     output, Loss_mean, Loss_std = QP_layers(inputs, param, targets=targets,
-                    lower_bounds=lower_bounds, trainable=False, history=history,
-                    verbose=verbose)
+                    lower_bounds=lower_bounds, trainable=False, history=history, 
+                    V0_init=V0_init, svp=svp, hardConst=hardConst, verbose=verbose)
     Ypred = CROP(1,0,param.Y.shape[1]) (output)
     Vf = get_flux_output(param, output)
     # compute R2 and write losses and targets
@@ -1382,9 +1387,9 @@ def run_MM_QP(parameter, loss_outfile=None, targets_outfile=None, history=True, 
     return Vf.numpy(), ReturnStats(r2, 0, Loss_mean[-1], Loss_std[-1],
                                    0, 0, 0, 0)
 
-def MM_QP(parameter, loss_outfile=None, targets_outfile= None, history=True, verbose=False):
+def MM_QP(parameter, loss_outfile=None, targets_outfile= None, history=True, V0_init=-1, svp=15, hardConst=1, verbose=False):
     # Solve QP without training
-    return run_MM_QP(parameter, loss_outfile=loss_outfile, targets_outfile=targets_outfile, history=history, verbose=verbose)
+    return run_MM_QP(parameter, loss_outfile=loss_outfile, targets_outfile=targets_outfile, history=history, V0_init=V0_init, svp=svp, hardConst=hardConst, verbose=verbose)
 
 
 ###############################################################################
