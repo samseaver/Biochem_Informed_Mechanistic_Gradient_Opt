@@ -199,7 +199,6 @@ def run_duplicate_model(param, remove_med, fluxCoupling=False):
 	    if('SK' in reaction.id):
 	        print(reaction.id)
 	        
-
 	if fluxCoupling: 
 		runFluxCoupling(model, dup_co_model, model_path)
 

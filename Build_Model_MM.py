@@ -9,7 +9,7 @@ from Library.Build_Model import *
 # We declare this function here and not in the
 # function-storing python file to modify it easily
 # as it can change the printouts of the methods
-def printout(V, Stats, model, id='all'):
+def printout(V, Stats, model,param, id='all'):
     # printing Stats
     print("R2 = %.2f (+/- %.2f) Constraint = %.2f (+/- %.2f)" % \
           (Stats.train_objective[0], Stats.train_objective[1],
@@ -30,19 +30,19 @@ def printout(V, Stats, model, id='all'):
     print('Loss V positive', np.mean(Loss_norm))
     # print(V)
 
-    processResults(model.reactions, V, Vin, Pin, model.Pout, id, model.treatments)
+    processResults(model.reactions, V, Vin, Pin, model.Pout, id,param, model.treatments)
 
-def processResults(reactions, V, Vin, Pin, Pout, id, treatments=[]):
+def processResults(reactions, V, Vin, Pin, Pout, id, param, treatments=[]):
     import pandas
     temp_df = pandas.DataFrame(data=V, columns=reactions)
-    temp_df.to_csv(f"Result/{id}_V_rxn.tsv", sep='\t')
+    temp_df.to_csv(f"{param.ml_result_folder}{id}_V_rxn.tsv", sep='\t')
     temp_df = pandas.DataFrame(data=V, columns=reactions, index=treatments)
-    temp_df.to_csv(f"Result/{id}_V_rxn_trmt.tsv", sep='\t')
+    temp_df.to_csv(f"{param.ml_result_folder}{id}_V_rxn_trmt.tsv", sep='\t')
 
-    np.savetxt(f"Result/{id}_V.tsv", V, delimiter='\t')
-    np.savetxt(f"Result/{id}_X.tsv", Vin, delimiter='\t')
-    np.savetxt(f"Result/{id}_Pin.tsv", Pin, delimiter='\t')
-    np.savetxt(f"Result/{id}_Pout.tsv", Pout, delimiter='\t')
+    np.savetxt(f"{param.ml_result_folder}{id}_V.tsv", V, delimiter='\t')
+    np.savetxt(f"{param.ml_result_folder}{id}_X.tsv", Vin, delimiter='\t')
+    np.savetxt(f"{param.ml_result_folder}{id}_Pin.tsv", Pin, delimiter='\t')
+    np.savetxt(f"{param.ml_result_folder}{id}_Pout.tsv", Pout, delimiter='\t')
 
 def run_simulation(param, epochs=2.5e6, learn_rate=1, decay_rate=.333, V0_init=-1, svp=15, hardConst=1, use_objective=False, biomass_max=100):
     # What you can change
@@ -52,12 +52,12 @@ def run_simulation(param, epochs=2.5e6, learn_rate=1, decay_rate=.333, V0_init=-
     ## Model variables: 
     spc = param.spc
     day = param.time_stamp
-    tissue = param.other_colm_val
+    tissue = param.other_colm_value
     trainingfile = param.dataset_file
     trainname = trainingfile.split('/')[-1]
 
-    loss_outfile="Result/"+trainname+"_loss"
-    targets_outfile= "Result/"+trainname+"_targets"
+    loss_outfile=param.ml_result_folder+trainname+"_loss"
+    targets_outfile=param.ml_result_folder+trainname+"_targets"
 
     # timestep = int(1.0e5) # LP 1.0e4 QP 1.0e5
     timestep = int(epochs) # 3.5e6
@@ -92,7 +92,7 @@ def run_simulation(param, epochs=2.5e6, learn_rate=1, decay_rate=.333, V0_init=-
                   verbose=True)
 
     model.printout()
-    np.savetxt(f"Y_{id}.csv", model.Y, delimiter=',')
+    np.savetxt(f"{param.ml_result_folder}Y_{id}.csv", model.Y, delimiter=',')
 
     # Prints a summary of the model before running
     model.printout()
@@ -102,7 +102,7 @@ def run_simulation(param, epochs=2.5e6, learn_rate=1, decay_rate=.333, V0_init=-
         Ypred, Stats = MM_QP(model, loss_outfile=loss_outfile, targets_outfile=targets_outfile, V0_init=V0_init, svp=svp, hardConst=hardConst, verbose=True)
 
     # Printing results
-    printout(Ypred, Stats, model, id)
+    printout(Ypred, Stats, model,param,id)
 
     end = time.time()
     timeD = end - start

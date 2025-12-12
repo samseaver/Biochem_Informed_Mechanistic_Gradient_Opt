@@ -514,7 +514,7 @@ class TrainingSet:
         self.treatments = treatments
 
         # Read V_bf dataframe
-        self.Vbf_df = pandas.read_csv(Vbfname)
+        self.Vbf_df = pandas.read_csv(Vbfname,sep="\t")
         if restrictedFittingList:
             self.Vbf_df = self.Vbf_df[self.Vbf_df['rxn_ID'].isin(restrictedFittingList)]
 
@@ -724,17 +724,17 @@ class TrainingSet:
 
     def additionalPrinting(self):
         import pandas
-        temp_df = pandas.DataFrame(self.Pout, columns=self.reactions)
-        temp_df.index = self.reactions
-        temp_df.to_csv("Result/dataSetPout.tsv", sep='\t')
+        # temp_df = pandas.DataFrame(self.Pout, columns=self.reactions)
+        # temp_df.index = self.reactions
+        # temp_df.to_csv("Result/dataSetPout.tsv", sep='\t')
 
-        temp_df = pandas.DataFrame(self.Y, columns=self.reactions)
-        temp_df.index = self.treatments
-        temp_df.to_csv("Result/dataSetY.tsv", sep='\t')
+        # temp_df = pandas.DataFrame(self.Y, columns=self.reactions)
+        # temp_df.index = self.treatments
+        # temp_df.to_csv("Result/dataSetY.tsv", sep='\t')
 
-        temp_df = pandas.DataFrame(self.X, columns=self.medium)
-        temp_df.index = self.treatments
-        temp_df.to_csv("Result/dataSetX.tsv", sep='\t')
+        # temp_df = pandas.DataFrame(self.X, columns=self.medium)
+        # temp_df.index = self.treatments
+        # temp_df.to_csv("Result/dataSetX.tsv", sep='\t')
         # temp_df = pandas.DataFrame(data=Vin, columns=reactions)
         # temp_df.to_csv("Result/tempVin.tsv", sep='\t')
         #
@@ -796,19 +796,19 @@ class TrainingSet:
         Y = np.asarray(list(Y.values()))
         LB = np.asarray(list(LB.values()))
         rxns = [r.id for r in self.model.reactions]
-        print(len(self.model.reactions))
-        print(Y.shape)
-        print(len(rxns))
-        temp_df = pandas.DataFrame(data=Y, columns=rxns)
-        temp_df.index = self.treatments
-        print(temp_df.head())
-        temp_df.to_csv("Result/temp_Y.csv")
+        # print(len(self.model.reactions))
+        # print(Y.shape)
+        # print(len(rxns))
+        # temp_df = pandas.DataFrame(data=Y, columns=rxns)
+        # temp_df.index = self.treatments
+        # print(temp_df.head())
+        # temp_df.to_csv("Result/temp_Y.csv")
 
         rxns = [r.id for r in self.model.reactions]
-        temp_df = pandas.DataFrame(data=LB, columns=rxns)
-        temp_df.index = self.treatments
-        print(temp_df.head())
-        temp_df.to_csv("Result/temp_LB.csv")
+        # temp_df = pandas.DataFrame(data=LB, columns=rxns)
+        # temp_df.index = self.treatments
+        # print(temp_df.head())
+        # temp_df.to_csv("Result/temp_LB.csv")
         # np.savetxt("temp_Y.csv", Y, delimiter=',')
         # print(abc)
 
@@ -829,7 +829,7 @@ class TrainingSet:
             self.X, self.Y, self.LB = X, Y, LB
         self.size = self.X.shape[0]
 
-        np.savetxt("Result/tempPout.tsv", self.Pout, delimiter='\t')
+        # np.savetxt("Result/tempPout.tsv", self.Pout, delimiter='\t')
 
     def filter_measure(self, measure=[], verbose=False):
         # Keep only reaction fluxes in measure

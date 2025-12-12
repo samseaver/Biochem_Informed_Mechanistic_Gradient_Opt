@@ -1,7 +1,6 @@
 import os
 import sys
 
-
 from Library.Build_Dataset import *
 
 seed = 10
@@ -10,10 +9,9 @@ np.random.seed(seed=seed)  # seed for random number generator
 def build_dataset(param):
     spc        = param.spc
     time_stamp = param.time_stamp
-    other_colm = param.other_colm_val
+    other_colm = param.other_colm_value
     treatments = param.treatments
     expFolder  = param.expFolder
-
 
     mediumbound = 'UB' # Exact bound (EB) or upper bound (UB)
     method = 'Vbf' #'FBA' # FBA, pFBA or EXP, Vbf, Vbf_Wt
@@ -27,8 +25,9 @@ def build_dataset(param):
 
     # Run cobra
     Vbffile    = param.VbfFile
-    cobrafile  = param.model_path.replace('.json', '_duplicated')
-    mediumfile = param.mediumFile
+    print(param.VbfFile)
+    cobrafile  = param.model_path.replace('.xml', '')
+    mediumfile = param.mediaFile
     parameter  = TrainingSet(cobraname=cobrafile,
                             mediumname=mediumfile, mediumbound=mediumbound,
                             method=method,objective=[],
@@ -42,7 +41,7 @@ def build_dataset(param):
 
     # Saving file
     trainingfile  = param.dataset_file
-
+    print("Saving training file: ",trainingfile)
     parameter.save(trainingfile, reduce=reduce, verbose=verbose)
 
     # Verifying
