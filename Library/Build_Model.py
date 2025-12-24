@@ -1072,9 +1072,8 @@ def get_V0(inputs, parameter, targets, lower_bounds, trainable, V0_init=-1, verb
         relu = tf.math.divide_no_nan(relu, relu) # 0/1 tensor
         # VinV = V when V < Vin, VinV = Vin when V > Vin
         VinV = relu * V0 + (ones-relu) * VinV
-    # V0 = tf.math.multiply(V0, mask) + VinV
-    V0 = tf.where(V0 >= 0, 0, V0)
-
+    V0 = tf.math.multiply(V0, mask) + VinV
+    
     if V0_init < 0:
         # make intial flux equal to Vbf or avg Vbf 
         # if ('vbf' in parameter.method.lower()):
