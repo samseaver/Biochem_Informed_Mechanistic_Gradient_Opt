@@ -23,9 +23,10 @@ def get_rxn_ID(clm_name, row):
 
     return id_only
 
-def load_fluxes(fluxes_file, verbose=True):
+def load_fluxes(fluxes_file, verbose=False):
+    print("Loading fluxes from "+fluxes_file)
+
     fva_flux_df = pa.read_csv(fluxes_file, sep='\t')
-    print("=============== load_fluxes =============")
     if verbose: print(fva_flux_df.describe())
     
     # remove reactions added by the flexible biomass package
@@ -57,7 +58,6 @@ def load_fluxes(fluxes_file, verbose=True):
     if verbose: print(fva_flux_df.head())
     # print(abc)
 
-    print("=============== load_fluxes =============")
     return fva_flux_df
 
 def load_scores_objKapp_relabVbf(scores_file, ctrl_trmt= 'Control', useRelab=True, day='all', value_col='value', trmt_column='treatment', verbose=False):
@@ -128,8 +128,6 @@ def load_scores_relabKapp_objVbf(scores_file, relab_scores_file='', ctrl_trmt= '
     if useRelab:
         sep = '\t' if '.tsv' in relab_scores_file else ','
         relab_scores_df = pa.read_csv(relab_scores_file, sep = sep)
-        # Convert units using avogadro number
-        print(relab_scores_df.head())
         
         if '00h' in relab_scores_df['time_stamp'].unique():
             relab_scores_df = relab_scores_df[~relab_scores_df['time_stamp'].isin(['01h', '00h'])]
@@ -147,19 +145,16 @@ def load_scores_relabKapp_objVbf(scores_file, relab_scores_file='', ctrl_trmt= '
     if(apply_additional_filter):
         control_selector = column_selector & (relab_scores_df[other_colm] == grpr3)
 
-    #  --> Use control treatment only
-    print(relab_scores_df.columns)
-    print(relab_scores_df.head())
-
     control = relab_scores_df[control_selector]
 
     # drop all columns except score and reaction IDs
     control = control[[value_col, 'rxn_ID']]
     control = control.groupby('rxn_ID').mean()
+    control = control.reset_index()
     if verbose: print(control.head())
 
     # Keep value of interest
-    # Compute Vbf for all time points and treatments
+    # Computing for all time points and treatments
 
     if day.lower() == 'all':
 
@@ -168,7 +163,7 @@ def load_scores_relabKapp_objVbf(scores_file, relab_scores_file='', ctrl_trmt= '
 
         scores_df[trmt_column] = scores_df[trmt_column].astype(str)+"_"+scores_df['time_stamp'].astype(str)
 
-    # Compute Vbf for one specific time point `day` and all treatments                        
+    # Computing for one specific time point `day` and all treatments                        
     else:
         scores_filter = (scores_df['time_stamp'] == day)
         if(apply_additional_filter):
@@ -206,97 +201,102 @@ def duplicate_Vbf_values(co_model, Vbf_df, verbose=False):
 
 def generate_all_df(day, fluxes_file, scores_file, relab_scores_file="", value_col='value', trmt_column='treatment', ctrl_trmt='Control', other_colm='tissue', grpr3='Leaf', useRelab=True, verbose=False):
     # Reaction score for non-duplicated model
-    scores_df, control = load_scores_relabKapp_objVbf(scores_file, relab_scores_file, ctrl_trmt, useRelab, day, value_col, trmt_column,other_colm=other_colm, grpr3=grpr3, verbose=verbose)
+    print("A"*50)
+    scores_df, control = load_scores_relabKapp_objVbf(scores_file, relab_scores_file, ctrl_trmt, useRelab, day, value_col, trmt_column, other_colm=other_colm, grpr3=grpr3, verbose=verbose)
+
+    # scores_df.to_csv('scores_df.tsv',index=False,sep='\t')
+    # control.to_csv('control.tsv',index=False,sep='\t')
+    
+    scores_df.rename(columns={'rxn_ID': 'base_id'}, inplace=True)
+    scores_df.rename(columns={'mean_value': 'reaction_score'}, inplace=True)
+    scores_df = scores_df[scores_df['base_id'].str.contains(r'rxn\d{5}', regex=True)]
+
+    control_df.rename(columns={'rxn_ID': 'base_id'}, inplace=True)
+    control_df.rename(columns={'mean_value': 'average_rs'}, inplace=True)
+    control_df = control_df[control_df['base_id'].str.contains(r'rxn\d{5}', regex=True)]
+
     # Fluxes for duplicated model
-    fluxes_dup = load_fluxes(fluxes_file)
-    verbose is True
+    print("B"*50)
+    fva_df = load_fluxes(fluxes_file)
+
+    fva_df['max'] = fva_df['max'].abs()
+    fva_df['base_id'] = fva_df['reaction'].str.replace(r'_[rfio]$', '', regex=True)
+
+    # fluxes_dup.to_csv('fluxes_dup.tsv',index=False,sep='\t')
+    
+    print("C"*50)
+
+    verbose = True
     if verbose:
-        print("Control DF: \n", control.head())
+        print("Control DF: \n", control_df.head())
         print("Scores DF: \n", scores_df.head())
-        print("Fluxes DF: \n", fluxes_dup.head())
+        print("Fluxes DF: \n", fva_df.head())
+    verbose = False
 
-    test_ids = ['rxn20617_c0','rxn20617_c0_f','rxn20617_c0_r',
-                'rxn20617_d0','rxn20617_d0_f','rxn20617_d0_r']
+    kapp_df = pd.merge(fva_df, control_df, on='base_id', how='inner', indicator=True)
+    
+    unmerged_rows = kapp_df[kapp_df['_merge'] == 'left_only']
+    print(f"Number of unmerged rows: {len(unmerged_rows)}")
+    print(unmerged_rows['short_rxn_ID'].unique())
 
-    fluxes_dup['short_rxn_ID'] = fluxes_dup['rxn_ID'].str.replace('(_f|_r)$', '', regex=True)
+    # Summarize the results
+    print(kapp_df['_merge'].value_counts())
 
-    Vbf_df = fluxes_dup.merge(
-        control,
-        left_on='short_rxn_ID',  # Match the stripped ID from the fluxes DataFrame
-        right_on='rxn_ID',     # Match the original ID from the control DataFrame
-        how='left',             # Keep all rows from fluxes_dup
-        suffixes=('_flx', '_ctrl') # Use suffixes to differentiate columns if needed
-    )
+    # Look at 5 examples that FAILED to merge (exist in fluxes but not control)
+    # print("\n--- Example Mismatches (Fluxes Only) ---")
+    # print(Vbf_df[Vbf_df['_merge'] == 'left_only']['short_rxn_ID'].head())
 
-    print("Columns: ",Vbf_df.columns)
-    # Compute K_app
-    # Vbf_df = control.merge(fluxes_dup, on='rxn_ID', how='left')
-    print("Vbf_df: ", Vbf_df.head())
+    # print("\n--- Example Mismatches (Control Only) ---")
+    # print(Vbf_df[Vbf_df['_merge'] == 'right_only']['ctrl_rxn_ID'].head())
 
-    for rxn in test_ids:
-        if((Vbf_df['rxn_ID'] == rxn).any()):
-            # if(rxn in Vbf_df.index):
-            single_reaction_row = Vbf_df[Vbf_df['rxn_ID'] == rxn]
-            mean_flux_value = single_reaction_row['mean_flux'].iloc[0]
-            print("Vbf 1: ",rxn,mean_flux_value)
-        if((fluxes_dup['rxn_ID'] == rxn).any()):
-            single_reaction_row = fluxes_dup[fluxes_dup['rxn_ID'] == rxn]
-            mean_flux_value = single_reaction_row['mean_flux'].iloc[0]
-            print("F 1: ",rxn,mean_flux_value)
+    # IMPUTE MAX FLUX (For Blocked Reactions)
+    # We still do this to fix the "structure," even if expression kills it later.
+    cutoff = determine_ceiling_threshold(kapp_df, col='max')
+    mask_real = (kapp_df['max'] > 1e-6) & (kapp_df['max'] < cutoff)
+    median_max_flux = kapp_df.loc[mask_real, 'max'].median()
 
-    Vbf_df['kapp'] = np.abs(Vbf_df['mean_flux'])/Vbf_df[value_col]
+    mask_blocked_flux = kapp_df['max'] <= 1e-6
+    print(f"Imputing Median Flux ({median_max_flux:.2f}) for {mask_blocked_flux.sum()} blocked reactions.")
+    kapp_df.loc[mask_blocked_flux, 'max'] = median_max_flux
 
-    Vbf_df.rename(columns={value_col:'ctrl_score'}, inplace=True)
+    # Calculate Kapp = Max / Average RS
+    # This will generate np.inf where average_rs is 0
+    kapp_df['kapp'] = kapp_df['max'] / kapp_df['average_rs']
+
+    # Vbf_df['kapp'] = np.abs(Vbf_df['mean_flux'])/Vbf_df[value_col]
+    # Vbf_df.rename(columns={value_col:'ctrl_score'}, inplace=True)
+
+    # FIX: Force Kapp to 0.0 where it is currently Infinite (due to zero abundance)
+    # Logic: "If not expressed in control, Kapp is 0."
+    kapp_df.replace([np.inf, -np.inf], 0.0, inplace=True)
+    kapp_df['kapp'] = kapp_df['kapp'].fillna(0.0)
+
+    # Check
+    zero_kapps = (kapp_df['kapp'] == 0).sum()
+    print(f"Reactions with Kapp forced to 0 (due to 0 control expression): {zero_kapps}")
+
     if verbose:
         print("----- K_app describe: ")
-        print(Vbf_df['kapp'].describe())
+        print(kapp_df['kapp'].describe())
 
-    # Compute V_bf for every treatment
-    scores_df['rxn_ID'] = scores_df['rxn_ID'].astype(str)
-    Vbf_df['rxn_ID'] = Vbf_df['rxn_ID'].astype(str)
-    if verbose:
-        print('There are ', Vbf_df['rxn_ID'].nunique(), ' reactions in Vbf_df DF')
-        print('There are ', scores_df['rxn_ID'].nunique(), ' reactions in scores_df DF')
-
-    # align K_app values with the reactions' scores for all <treatments_timePoint>
-    # Vbf_df = pa.merge(Vbf_df, scores_df, on='rxn_ID', how='left')
-    Vbf_df = Vbf_df.merge(
-        scores_df,
-        left_on='short_rxn_ID',  # The non-directional key in the Vbf_df
-        right_on='rxn_ID',      # The non-directional key in the other_df
-        how='left',             # Keep all rows from Vbf_df
-        suffixes=('', '_sco') # Use suffixes to manage column naming conflicts
-    )
-    print(Vbf_df.head())
-    print("Columns: ",Vbf_df.columns)
-    Vbf_df['v'] = Vbf_df[value_col] * Vbf_df['kapp']
-    Vbf_df.rename(columns={value_col:"score"}, inplace=True)
+    kapp_df = kapp_df[['reaction', 'base_id', 'max', 'kapp', 'average_rs']].drop_duplicates()
+    vbf_df = pd.merge(kapp_df, scores_df, on='base_id', how='inner',indicator=True)
+    vbf_df['vbf'] = vbf_df['kapp'] * vbf_df['reaction_score']
     
     # pivot the dataframe to create a column for each treatment
-    ind = ['rxn_ID', 'mean_flux', 'kapp']
+    ind = ['reaction', 'max', 'kapp']
     col = [trmt_column]
-    val = ['score', 'v']
-    Vbf_df = Vbf_df.pivot(index=ind, columns=col, values=val)
-    Vbf_df.columns = Vbf_df.columns.map('{0[0]}_{0[1]}'.format)
-    Vbf_df = Vbf_df.reset_index()
+    val = ['reaction_score', 'vbf']
+    vbf_df = vbf_df.pivot(index=ind, columns=col, values=val)
+    vbf_df.columns = Vbf_df.columns.map('{0[0]}_{0[1]}'.format)
+    vbf_df = Vbf_df.reset_index()
 
     # Clean values 
-    Vbf_df.replace([np.inf, -np.inf], 0, inplace=True)
-    Vbf_df = Vbf_df.fillna(0)
-    Vbf_df = Vbf_df.drop(columns=['v_nan'])
-    Vbf_df = Vbf_df.drop(columns=['score_nan'])
+    # vbf_df.replace([np.inf, -np.inf], 0, inplace=True)
+    # vbf_df = Vbf_df.fillna(0)
 
-    print(Vbf_df.head())
-    # print(Vbf_df.columns)
-    # print(abc)
-    
-    # plot V_bf to compare
-    # v_colms = [x for x in Vbf_df.columns if 'v_' in x]
-    # v_colms = ['rxn_ID'] + v_colms
-    # Vbf_df[v_colms].set_index('rxn_ID').plot()
-    # plt.show()
-
-    return Vbf_df
+    print(vbf_df.head())
+    return vbf_df
 
 def vbf_reset(Vbf_df, treatments, threshold): 
     for trmt in treatments:
@@ -483,13 +483,12 @@ def save_to_file(Vbf_df, spc, grpr3, day, saveTo, useRelab=False):
     Vbf_df.to_csv(saveTo, index=False,sep='\t')
 
 def generate_Vbf(param,model=None):
-    print(param)
     spc = param.spc
     day = param.time_stamp
     grpr3 = param.other_colm_value
     treatments = param.treatments
     expFolder = param.expFolder
-    verbose=True
+    verbose=False
 
     ctrl_trmt = param.ctrl_trmt
     other_colm = param.other_colm
@@ -509,7 +508,7 @@ def generate_Vbf(param,model=None):
     ## Objective abundance
     scores_file = param.scores_file
     
-    Vbf_df = generate_all_df(day, fluxes_file, scores_file,relab_scores_file, value_col, trmt_column, ctrl_trmt, other_colm, grpr3, useRelab, verbose)
+    Vbf_df = generate_all_df(day, fluxes_file, scores_file, relab_scores_file, value_col, trmt_column, ctrl_trmt, other_colm, grpr3, useRelab, verbose)
 
     # Vbf_df = duplicate_Vbf_values(model, Vbf_df, verbose)
 

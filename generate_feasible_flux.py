@@ -11,15 +11,6 @@ from datetime import datetime
 sys.path.append('/scratch/seaver/Collaborations/Greenham_UMinn/ModelSEEDPy')
 sys.path.append('/scratch/seaver/Collaborations/Greenham_UMinn/cobrakbase')
 
-#### Replace by the path to module 
-module = '../RNASeq_Enzyme_Abundance/src'
-if module not in sys.path:
-	sys.path.append(module)
-
-module += '/reaction_scores'
-if module not in sys.path:
-	sys.path.append(module)
-
 # Save the original stdout and stderr
 original_stdout = sys.stdout
 original_stderr = sys.stderr
@@ -30,24 +21,14 @@ try:
 	sys.stderr = open(os.devnull, 'w')
 	
 	# 2. Place all the noisy imports here
-	# These imports/initializations will now run silently
-
-	# the next three lines are importaed from ../RNASeq_Enzyme_Abundance
-	import computeScoresAndPredictions as csp
 	from modelseedpy import FlexibleBiomassPkg
-	from util.parameters import Parameters_QPSI
-	from util.parameters import Parameters_ColdResponse
 
 	from parameters import *
-
 	from cobrakbase.core.kbasefba.fbamodel_from_cobra import CobraModelConverter as cmc
 	from cobra.flux_analysis import flux_variability_analysis as fva
 	from cobra.io import write_sbml_model
 	import Library.generateBioFeasibleFlux as gvbf
 	import prepare_model_duplication as pdm
-	import flux_coupling_analysis
-	import Build_Dataset as bd
-	import Build_Model_MM as bmm
 
 finally:
 	# 3. ALWAYS restore the original stdout/stderr
@@ -68,23 +49,23 @@ if __name__ == '__main__':
 			sys.exit(1)
 
 	# Project parameters
-	ml_param = Parameters_ML_ColdResponse()
+	vbf_parameters = Parameters_VBF()
 	if(genotype is not None):
-		ml_param.spc = genotype
-		ml_param.other_colm_value = genotype
+		vbf_parameters.spc = genotype
+		vbf_parameters.other_colm_value = genotype
 		project_root = "-".join(["projects/cold-response",genotype.lower(),'251206'])+'/'
-		ml_param.projectFolder=project_root
-		ml_param.results_folder = f"{ml_param.projectFolder}integration-results/"
-		ml_param.model_path = f"{ml_param.projectFolder}inputs/{ml_param.cobraname}.json"
-		ml_param.media_path = f"{ml_param.projectFolder}inputs/{ml_param.mediumname}.json"
-		ml_param.mediaFile  = f"{ml_param.projectFolder}inputs/{ml_param.mediumname}"
-		ml_param.scores_file = os.path.join(ml_param.results_folder, f"{ml_param.spc}_objective_abundance_{ml_param.ctrl_trmt}.tsv")
-		ml_param.VbfFile = os.path.join(ml_param.results_folder, ml_param.Vbfname)
-		ml_param.dataset_file = os.path.join(ml_param.projectFolder, 'model', f"{ml_param.spc}_{str(len(ml_param.treatments))}_{ml_param.other_colm}_{ml_param.time_stamp}_complexFix_loopless")
-		ml_param.ml_result_folder = f"{ml_param.projectFolder}ml_results/"
+		vbf_parameters.projectFolder=project_root
+		vbf_parameters.results_folder = f"{vbf_parameters.projectFolder}integration-results/"
+		vbf_parameters.model_path = f"{vbf_parameters.projectFolder}inputs/{vbf_parameters.cobraname}.json"
+		vbf_parameters.media_path = f"{vbf_parameters.projectFolder}inputs/{vbf_parameters.mediumname}.json"
+		vbf_parameters.mediaFile  = f"{vbf_parameters.projectFolder}inputs/{vbf_parameters.mediumname}"
+		vbf_parameters.scores_file = os.path.join(vbf_parameters.results_folder, f"{vbf_parameters.spc}_objective_abundance_{vbf_parameters.ctrl_trmt}.tsv")
+		vbf_parameters.VbfFile = os.path.join(vbf_parameters.results_folder, vbf_parameters.Vbfname)
+		vbf_parameters.dataset_file = os.path.join(vbf_parameters.projectFolder, 'model', f"{vbf_parameters.spc}_{str(len(vbf_parameters.treatments))}_{vbf_parameters.other_colm}_{vbf_parameters.time_stamp}_complexFix_loopless")
+		vbf_parameters.ml_result_folder = f"{vbf_parameters.projectFolder}ml_results/"
 
 	# generate COBRA model using cobrakbase
-	model = pdm.generateCobraModel(ml_param.model_path, ml_param.media_path)
+	model = pdm.generateCobraModel(vbf_parameters.model_path, vbf_parameters.media_path)
 
 	# Find and remove inactive compartments.
 	# The duplication of the model means that an inactive compartment 
@@ -153,7 +134,7 @@ if __name__ == '__main__':
 	# in the extracellular compartment, and the model may contain more than in
 	# the media, that are unconstrained, so we use the media to strip away
 	# unwanted exchange reactions
-	dup_model = pdm.prepare_model_duplication(model,media_path=ml_param.media_path)
+	dup_model = pdm.prepare_model_duplication(model,media_path=vbf_parameters.media_path)
 
 	# The original code for duplicating the reversible reactions in the model
 	# doesn't duplicate the GPR, so we fix that here
@@ -162,13 +143,10 @@ if __name__ == '__main__':
 			r.gene_reaction_rule = dup_model.reactions.get_by_id(r.id[:-2]+'_f').gene_reaction_rule
 			r.update_genes_from_gpr()
 
-	# Compute reaction scores
-	rs_param = Parameters_ColdResponse()
-
 	# Print duplication model into new folder to be read
 	# by package for generating reaction scores
-	# dup_folder = os.path.dirname(ml_param.model_path)+"/duplicate/"
-	# dup_file = os.path.basename(ml_param.model_path).replace(".json","_dup.json")
+	# dup_folder = os.path.dirname(vbf_parameters.model_path)+"/duplicate/"
+	# dup_file = os.path.basename(vbf_parameters.model_path).replace(".json","_dup.json")
 	# os.makedirs(dup_folder, exist_ok=True)
 	# print("Writing duplicated model: ",dup_file)
 	# print("To folder: ",dup_folder)
@@ -178,9 +156,8 @@ if __name__ == '__main__':
 	# 	json.dump(kbase_data,fh,indent=2)
 
 	# rs_param.json_files_folder = dup_folder
-	rs_param.results_folder = ml_param.results_folder
-	rs_param.json_files_folder = ml_param.projectFolder+'inputs/'
-	csp.generate_reactionScores(rs_param,project_species=[genotype],verbose=False)
+	rs_param.results_folder = vbf_parameters.results_folder
+	rs_param.json_files_folder = vbf_parameters.projectFolder+'inputs/'
 
 	# Compute max fva scores with flexible biomass
 	# Using flexible biomass increases the range of fluxes that are possible
@@ -202,48 +179,4 @@ if __name__ == '__main__':
 			if rxn in dup_model.reactions:
 				ofh.write(f"{rxn}\t{result['maximum']:.6f}\n")
 
-	gvbf.generate_Vbf(ml_param,model=dup_model)
-
-	# prints the duplicated model to xml and updates the parameter
-	ml_param.model_path = ml_param.model_path.replace(".json","_dup.xml")
-	write_sbml_model(dup_model, ml_param.model_path)
-
-	# Build detaset for the ML pipeline: 
-	#    -> Reads Vbf to set is as the constraint 
-	#    -> Reads the duplicated model to generate the matrix 
-	# This requires a specially formatted media file for the boundary reactions in the model
-	exchange_list = [r.id for r in dup_model.exchanges if "EX" in r.id]
-	with open(ml_param.mediaFile+'.csv','w') as fh:
-		print("writing exchanges to training media")
-		fh.write(f"name,{",".join(exchange_list)}\n")
-		fh.write(f"level{',2'*len(exchange_list)}\n")
-		fh.write(f"max_value{',1000'*len(exchange_list)}\n")
-		fh.write(f"ratio_drawing{','*len(exchange_list)}\n")
-	# bd.build_dataset(ml_param)
-
-	###----- Run ML simulation
-	epochs=10 #2.5e6
-	learn_rate=1    # 
-	decay_rate=.333 # 
-
-	# initial flux for the simulation 
-	# -1: set Exchange reactions to 1000, Vbf for all reaction with a value or Vbf_mean 
-	# 0 or above: set starting fluxes to will be set to V0_init
-	#           : if V0_init is 0, Exchange reactions are set to 1000
-	V0_init=-1
-
-	# penalty on the steady state constraint
-	svp=15
-
-	# Which hard constraint to set for modeling 
-	# 0: for none
-	# 1: for positive flux only 
-	# 2: for both positive flux and Vbf 
-	hardConst=2
-
-	# set an upper bound constraint on the biomass reaction if 
-	#   use_objective is TRUE
-	use_objective=False
-	biomass_max=False
-
-	# bmm.run_simulation(ml_param, epochs=epochs, learn_rate=learn_rate, decay_rate=decay_rate, V0_init=V0_init, svp=svp, hardConst=hardConst, use_objective=use_objective, biomass_max = biomass_max)
+	gvbf.generate_Vbf(vbf_parameters,model=dup_model)
