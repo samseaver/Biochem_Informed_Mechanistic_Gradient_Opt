@@ -4,9 +4,6 @@ warnings.simplefilter(action='ignore', category=Warning)
 import sys
 import os
 import copy
-import json
-import pathlib
-from datetime import datetime
 
 sys.path.append('/scratch/seaver/Collaborations/Greenham_UMinn/ModelSEEDPy')
 sys.path.append('/scratch/seaver/Collaborations/Greenham_UMinn/cobrakbase')
@@ -16,22 +13,20 @@ original_stdout = sys.stdout
 original_stderr = sys.stderr
 
 try:
-	# 1. Redirect stdout/stderr to the null device
+	# Redirect stdout/stderr to the null device
 	sys.stdout = open(os.devnull, 'w')
 	sys.stderr = open(os.devnull, 'w')
 	
-	# 2. Place all the noisy imports here
+	# Place all the noisy imports here
 	from modelseedpy import FlexibleBiomassPkg
-
 	from parameters import *
-	from cobrakbase.core.kbasefba.fbamodel_from_cobra import CobraModelConverter as cmc
 	from cobra.flux_analysis import flux_variability_analysis as fva
-	from cobra.io import write_sbml_model
-	import Library.generateBioFeasibleFlux as gvbf
+	import generateBioFeasibleFlux as gvbf
 	import prepare_model_duplication as pdm
+	import cobra
 
 finally:
-	# 3. ALWAYS restore the original stdout/stderr
+	# ALWAYS restore the original stdout/stderr
 	sys.stdout.close()
 	sys.stderr.close()
 	sys.stdout = original_stdout
@@ -39,30 +34,7 @@ finally:
 
 if __name__ == '__main__':
 
-	allowed_genotypes = {'TSU', 'C24'}
-	genotype = None
-	if len(sys.argv) == 2:
-		genotype = sys.argv[1]
-
-		if genotype not in allowed_genotypes:
-			print(f"❌ Invalid value '{genotype}'. Argument must be TSU or C24.")
-			sys.exit(1)
-
-	# Project parameters
 	vbf_parameters = Parameters_VBF()
-	if(genotype is not None):
-		vbf_parameters.spc = genotype
-		vbf_parameters.other_colm_value = genotype
-		project_root = "-".join(["projects/cold-response",genotype.lower(),'251206'])+'/'
-		vbf_parameters.projectFolder=project_root
-		vbf_parameters.results_folder = f"{vbf_parameters.projectFolder}integration-results/"
-		vbf_parameters.model_path = f"{vbf_parameters.projectFolder}inputs/{vbf_parameters.cobraname}.json"
-		vbf_parameters.media_path = f"{vbf_parameters.projectFolder}inputs/{vbf_parameters.mediumname}.json"
-		vbf_parameters.mediaFile  = f"{vbf_parameters.projectFolder}inputs/{vbf_parameters.mediumname}"
-		vbf_parameters.scores_file = os.path.join(vbf_parameters.results_folder, f"{vbf_parameters.spc}_objective_abundance_{vbf_parameters.ctrl_trmt}.tsv")
-		vbf_parameters.VbfFile = os.path.join(vbf_parameters.results_folder, vbf_parameters.Vbfname)
-		vbf_parameters.dataset_file = os.path.join(vbf_parameters.projectFolder, 'model', f"{vbf_parameters.spc}_{str(len(vbf_parameters.treatments))}_{vbf_parameters.other_colm}_{vbf_parameters.time_stamp}_complexFix_loopless")
-		vbf_parameters.ml_result_folder = f"{vbf_parameters.projectFolder}ml_results/"
 
 	# generate COBRA model using cobrakbase
 	model = pdm.generateCobraModel(vbf_parameters.model_path, vbf_parameters.media_path)
@@ -167,3 +139,8 @@ if __name__ == '__main__':
 				ofh.write(f"{rxn}\t{result['maximum']:.6f}\n")
 
 	gvbf.generate_Vbf(vbf_parameters)
+
+	# prints the duplicated model to xml and updates the parameter
+	sbml_model_path = vbf_parameters.model_path.replace(".json","_dup.xml")
+	cobra.io.write_sbml_model(dup_model, sbml_model_path)
+
