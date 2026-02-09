@@ -83,7 +83,10 @@ if __name__ == '__main__':
 	# This is key because we are not optimizing biomass when we run
 	# our approach, and the presence of these components (which consume ATP)
 	# otherwise blocks biomass generation (energetically)
-	biomass_reaction = model.reactions.get_by_id('bio1_biomass')
+
+	# Here we're assuming that the biomass reaction is the first reaction with an objective coefficient
+	biomass_reactions = [rxn for rxn in model.reactions if rxn.objective_coefficient != 0]
+	biomass_reaction = biomass_reactions[0]
 
 	# This dictionary of metabolites and the stoichiometry is taken from the
 	# PlantSEED metabolic model. If you have GAM encoded in your biomass
@@ -143,22 +146,6 @@ if __name__ == '__main__':
 			r.gene_reaction_rule = dup_model.reactions.get_by_id(r.id[:-2]+'_f').gene_reaction_rule
 			r.update_genes_from_gpr()
 
-	# Print duplication model into new folder to be read
-	# by package for generating reaction scores
-	# dup_folder = os.path.dirname(vbf_parameters.model_path)+"/duplicate/"
-	# dup_file = os.path.basename(vbf_parameters.model_path).replace(".json","_dup.json")
-	# os.makedirs(dup_folder, exist_ok=True)
-	# print("Writing duplicated model: ",dup_file)
-	# print("To folder: ",dup_folder)
-	# with open(dup_folder+dup_file,'w') as fh:
-	# 	kbase_model = cmc(dup_model).build()
-	# 	kbase_data = kbase_model.get_data()
-	# 	json.dump(kbase_data,fh,indent=2)
-
-	# rs_param.json_files_folder = dup_folder
-	rs_param.results_folder = vbf_parameters.results_folder
-	rs_param.json_files_folder = vbf_parameters.projectFolder+'inputs/'
-
 	# Compute max fva scores with flexible biomass
 	# Using flexible biomass increases the range of fluxes that are possible
 	# within the core metabolic network responsible for biosynthesizing the biomass
@@ -168,15 +155,15 @@ if __name__ == '__main__':
 	fb_dup_model = copy.deepcopy(dup_model)
 	print(f"Adding flexible biomass ...")
 	fbp = FlexibleBiomassPkg(fb_dup_model)
-	fbp.build_package({"bio_rxn_id":"bio1_biomass"})
+	fbp.build_package({"bio_rxn_id":biomass_reaction.id})
 	fva_result=fva(fb_dup_model,fraction_of_optimum=0.75,pfba_factor=1.2,processes=1)
 
 	# Need to print to project results but I leave out the exchange reactions
 	# from the flexible biomass
-	with open(f'{rs_param.results_folder}fva.tsv','w') as ofh:
+	with open(f'{vbf_parameters.results_folder}fva.tsv','w') as ofh:
 		ofh.write("reaction\tmax\n")
 		for rxn, result in fva_result.iterrows():
 			if rxn in dup_model.reactions:
 				ofh.write(f"{rxn}\t{result['maximum']:.6f}\n")
 
-	gvbf.generate_Vbf(vbf_parameters,model=dup_model)
+	gvbf.generate_Vbf(vbf_parameters)

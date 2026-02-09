@@ -130,9 +130,7 @@ def find_remove_blocked_transporters(model):
 def generateCobraModel(model_path, media_path):
 	KBOF = KBaseObjectFactory()
 	model = KBOF.build_object_from_file(model_path, "KBaseFBA.FBAModel")
-	print("MEDIA: ",media_path)
 	media = KBOF.build_object_from_file(media_path, "KBaseBiochem.Media")
-	print("MEDIA: ",media)
 	model.medium = media
 	stripExchange(model, media)
 

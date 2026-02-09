@@ -9,16 +9,27 @@ sys.path.append(project_root)
 # Sets project specif information for automatic processing of transcriptome
 class Parameters_VBF: 
     def __init__(self):
+        self.spc = "Sorghum"
         self.project_folder = "projects/qpsi-sorghum-260206/"
-        self.model_name = "Sbicolor-v5.1-reconstruction_fixed.json"
+        self.model_name = "Sbicolor-v5.1-reconstruction_fixed"
         self.model_path = f"{self.project_folder}inputs/{self.model_name}.json"
 
         self.medium = "PlantAutotrophicMedia"
-        self.media_file  = f"{self.projectFolder}inputs/{self.medium}"
+        self.media_file  = f"{self.project_folder}inputs/{self.medium}"
         self.media_path = f"{self.media_file}.json"
 
-        pass
-    
+        self.results_folder = f"{self.project_folder}integration_results/"
+        self.scores_folder = f"/Users/seaver/Seaver_Lab/Git_Repos/RNASeq_Enzyme_Abundance/projects/qpsi/integration_results/"
+        self.scores_file = os.path.join(self.scores_folder, f"{self.spc}_objective_abundance.tsv")
+
+        self.ctrl_trmt = 'Control'
+        self.time_stamp = 'all'
+        
+        self.value_col = 'reaction_score'
+        self.trmt_column = 'condition'
+
+        self.useRelab=False
+
 class Parameters_ML: 
     def __init__(self): 
         self.spc = "TSU"
