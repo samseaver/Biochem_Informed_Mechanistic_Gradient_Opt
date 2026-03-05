@@ -8,20 +8,10 @@
 from __future__ import print_function
 import os
 import sys
-import csv
-import random
 import math
 import numpy as np
 import pandas
-import time
-import json
-import copy
-import pickle
 import cobra
-# import cobra.test # was crashing the colab implementation
-import cobra.manipulation as manip
-from cobra import Reaction, Metabolite, Model
-from cobra.flux_analysis import pfba
 from sklearn.utils import shuffle
 sys.setrecursionlimit(10000) # for row_echelon function
 
@@ -44,7 +34,6 @@ def get_matrices_vbf(model, medium, vbf, measure, reactions):
     # m = metabolite, n = reaction/v/flux, p = medium
     S = np.asarray(cobra.util.array.create_stoichiometric_matrix(model))
     cobra.util.array.create_stoichiometric_matrix(model, array_type = "DataFrame").to_csv("s_matrix.csv")
-    print(abc)
     n, m, n_in, n_out = S.shape[1], S.shape[0], len(medium), len(measure)
 
     # Get V2M and M2V from S
@@ -304,56 +293,77 @@ def create_fiexd_medium_vbf(model, medium, valmed, verbose=False):
     # Ouput:
     # - Intial reaction fluxes set to medium values
 
-    MAX_iteration = 5 # max numbrer of Cobra's failaure allowed
-
-    medini = model.medium.copy()
     INFLUX = dict()
     
     for r in model.reactions:
         INFLUX[r.id] = 0
 
-    print(len(medium))
     for ind in range(len(medium)):
         INFLUX[medium[ind]] = valmed[ind]
-
-    print("INFLUX: ", len(INFLUX))
     
     return INFLUX
 
 def getBioFluxes(model, Pout, medium, valmed, bioFluxes, treatment, augmntXY=False, inf={}):
+    """
+    Extracts biological fluxes from the VBF dataframe for a specific treatment.
+    Expects columns in the format: 'vbf_{treatment}'
+    """
+    # Initialize default medium/fluxes if not provided
     if not inf:
         inf = create_fiexd_medium_vbf(model, medium, valmed)
 
     FLUX = inf.copy()
     LB_vals = dict()
-    # print(bioFluxes.index)
+    
+    # Define the specific column name based on the new header format
+    col_name = f"vbf_{treatment}"
+    
+    # Check if the treatment exists in the dataframe
+    if col_name not in bioFluxes.columns:
+        print(f"Warning: Column '{col_name}' not found in VBF data. Defaulting to 0.")
 
     found = 0
+    
     for x in model.reactions:
-        # print(f"processing Reaction {x.id}")
-        # if x.id.rsplit("_", 1)[0] in bioFluxes.index:
-        #     FLUX[x.id] = bioFluxes.at[x.id.rsplit("_", 1)[0], 'v_'+treatment]
-        flux = 0
-        if (x.id in bioFluxes.index): # and ('rxn00018' in x.id):
-            found+=1
-            flux = bioFluxes.loc[x.id, 'v_'+treatment]
-            FLUX[x.id] = flux
-            # print(x.id, FLUX[x.id])
+        # 1. Determine the flux value
+        flux = FLUX.get(x.id, 0.0) 
+        
+        # We add a boolean flag to track if the reaction actually exists in the VBF dataset
+        is_measured = False 
+        
+        if (x.id in bioFluxes.index) and (col_name in bioFluxes.columns):
+            try:
+                val = bioFluxes.loc[x.id, col_name]
+                if not np.isnan(val):
+                    flux = val
+                    is_measured = True # The data exists, even if it is 0.0!
+                    found += 1
+            except Exception:
+                pass 
+        
+        # 2. Update the FLUX dictionary
+        FLUX[x.id] = flux
 
+        # 3. Update Pout (Measurement Matrix)
+        # THE FIX: If it is in the dataset, enforce it (Pout = 1). 
+        # If it is missing from the dataset, leave it free (Pout = 0).
         j = get_index_from_id(x.id, model.reactions)
-        # if flux <= 10:
-        if flux < 1e-6:
-            # print(f"setting reactions {x.id} Pout to 0")
+        if is_measured:
+            Pout[j][j] = 1
+        else:
             Pout[j][j] = 0
-        # else:
-        #     Pout[j][j] = 1
 
+        # 4. Store Lower Bounds
         LB_vals[x.id] = x.lower_bound
-    print("Assigned ", found, "/", len(model.reactions))
-    # print(abc)
+
+    # if verbose:
+    #     print(f"Assigned VBF values to {found}/{len(model.reactions)} reactions from '{col_name}'")
+
+    # Format outputs
     Y = np.asarray(list(FLUX.values()))
     LB = np.asarray(list(LB_vals.values()))
     X = np.asarray([ inf[medium[i]] for i in range(len(medium)) ])
+    
     if augmntXY:
         X = np.concatenate((X, Y), axis=0)
 
@@ -461,14 +471,12 @@ def get_io_cobra(model, objective, medium, mediumbound, varmed, levmed, valmed, 
     # - method: the method used by Cobra
     # Output:
     # - X=medium , Y=fluxes for reactions in E
-    print(inf)
+    
     if inf == {}:
-        print("inf condition")
         inf = create_random_medium_cobra(model, objective,
                                          medium, mediumbound,
                                          varmed, levmed, valmed.copy(), ratmed,
                                          method=method,verbose=verbose)
-    print(inf)
     out,obj = run_cobra(model,objective,inf,method=method,verbose=verbose)
 
     Y = np.asarray(list(out.values()))
@@ -484,27 +492,37 @@ def get_io_cobra(model, objective, medium, mediumbound, varmed, levmed, valmed, 
 class TrainingSet:
     # All element necessary to run AMN
     # cf. save for definition of parameters
-    def __init__(self,  cobraname='', mediumname='', mediumbound='EB', mediumsize=-1, objective=[], method='FBA', measure=[], Vbfname='', restrictedFittingList=[], treatments=[], verbose=False):
+    def __init__(self,  cobra_name='', medium_name='', medium_bound='EB', medium_size=-1, objective=[], method='FBA', measure=[], vbf_name='', restrictedFittingList=[], treatments=[], output_dir = "./", verbose=False):
 
-        if cobraname == '':
+        # Store output directory
+        self.output_dir = output_dir
+        
+        # Create directory if it doesn't exist
+        if self.output_dir and not os.path.exists(self.output_dir):
+            try:
+                os.makedirs(self.output_dir)
+                if verbose: print(f"Created output directory: {self.output_dir}")
+            except OSError as e:
+                sys.exit(f"Error creating output directory {self.output_dir}: {e}")
+
+        if cobra_name == '':
             return # create an empty object
-        if not os.path.isfile(cobraname+'.xml'):
-            print(cobraname)
+        if not os.path.isfile(cobra_name+'.xml'):
+            print(cobra_name)
             sys.exit('xml cobra file not found')
-        if not os.path.isfile(mediumname+'.csv'):
-            print(mediumname)
+        if not os.path.isfile(medium_name+'.csv'):
+            print(medium_name)
             sys.exit('medium or experimental file not found')
         if method.lower() == 'vbf':
-            if not os.path.isfile(Vbfname):
-                print(Vbfname)
-                sys.exit('Vbf file not found')
+            if not os.path.isfile(vbf_name):
+                sys.exit(f"Vbf file {vbf_name} not found")
 
-        self.cobraname = cobraname # model cobra file
-        self.mediumname = mediumname # medium file
-        self.mediumbound = mediumbound # EB or UB
+        self.cobraname = cobra_name # model cobra file
+        self.mediumname = medium_name # medium file
+        self.mediumbound = medium_bound # EB or UB
         self.method = method
-        self.Vbfname = Vbfname
-        self.model = cobra.io.read_sbml_model(cobraname+'.xml')
+        self.Vbfname = vbf_name
+        self.model = cobra.io.read_sbml_model(cobra_name+'.xml')
         ## remove --------------------
         # self.model.reactions.get_by_id("bio1_biomass").lower_bound = 1
         #### -------------------------
@@ -514,30 +532,31 @@ class TrainingSet:
         self.treatments = treatments
 
         # Read V_bf dataframe
-        self.Vbf_df = pandas.read_csv(Vbfname, sep='\t')
+        self.Vbf_df = pandas.read_csv(vbf_name, sep='\t')
         if restrictedFittingList:
             self.Vbf_df = self.Vbf_df[self.Vbf_df['rxn_ID'].isin(restrictedFittingList)]
 
         self.Vbf_df = self.Vbf_df.set_index('rxn_ID')
 
         if self.method.lower() == 'vbf':
+            print("Vbf method selected")
             vbf_rxns = list(self.Vbf_df.index)
             # to keep the sorting correct
             # self.measure = [r.id for r in self.model.reactions if r.id.rsplit("_", 1)[0] in vbf_rxns]
             self.measure = [r.id for r in self.model.reactions if r.id in vbf_rxns]
-            print("Measure: ", len(self.measure), len(vbf_rxns))
+            # print("Measure: ", len(self.measure), len(vbf_rxns))
 
         else:
             self.measure = [r.id for r in self.model.reactions] \
             if measure == [] else measure
 
         # set medium
-        H, M = read_csv(mediumname)
+        H, M = read_csv(medium_name)
         if 'EXP' in self.method : # Reading X, Y
-            if mediumsize < 1:
+            if medium_size < 1:
                 sys.exit('must indicate medium size with experimental dataset')
             medium = []
-            for i in range(mediumsize):
+            for i in range(medium_size):
                 medium.append(H[i])
             self.medium = medium
             self.levmed, self.valmed, self.ratmed = [], [], 0
@@ -726,25 +745,25 @@ class TrainingSet:
         import pandas
         temp_df = pandas.DataFrame(self.Pout, columns=self.reactions)
         temp_df.index = self.reactions
-        temp_df.to_csv("Result/dataSetPout.tsv", sep='\t')
+        temp_df.to_csv(os.path.join(self.output_dir,"dataSetPout.tsv"), sep='\t')
 
         temp_df = pandas.DataFrame(self.Y, columns=self.reactions)
         temp_df.index = self.treatments
-        temp_df.to_csv("Result/dataSetY.tsv", sep='\t')
+        temp_df.to_csv(os.path.join(self.output_dir,"dataSetY.tsv"), sep='\t')
 
         temp_df = pandas.DataFrame(self.X, columns=self.medium)
         temp_df.index = self.treatments
-        temp_df.to_csv("Result/dataSetX.tsv", sep='\t')
+        temp_df.to_csv(os.path.join(self.output_dir,"dataSetX.tsv"), sep='\t')
         # temp_df = pandas.DataFrame(data=Vin, columns=reactions)
-        # temp_df.to_csv("Result/tempVin.tsv", sep='\t')
+        # temp_df.to_csv(os.path.join(self.output_dir,"tempVin.tsv"), sep='\t')
         #
         # temp_df = pandas.DataFrame(data=Pin, columns=reactions)
-        # temp_df.to_csv("Result/tempPin.tsv", sep='\t')
+        # temp_df.to_csv(os.path.join(self.output_dir,"tempPin.tsv"), sep='\t')
         #
         # temp_df = pandas.DataFrame(data=Pout, columns=reactions)
-        # temp_df.to_csv("Result/tempPout.tsv", sep='\t')
+        # temp_df.to_csv(os.path.join(self.output_dir,"tempPout.tsv"), sep='\t')
 
-        # np.savetxt("Result/dataSetPout.tsv", self.Pout, delimiter='\t')
+        # np.savetxt(os.path.join(self.output_dir,"dataSetPout.tsv"), self.Pout, delimiter='\t')
 
 
     def get(self, sample_size=100, varmed=[], reduce=False, treatments=[], verbose=False):
@@ -756,7 +775,6 @@ class TrainingSet:
 
         X, Y, LB, inf = {}, {}, {}, {}
         if 'vbf' not in self.method.lower():
-            print(inf)
             for i in range(sample_size):
                 if verbose: print('sample:',i)
 
@@ -765,7 +783,6 @@ class TrainingSet:
                     inf = {r.id: 0 for r in self.model.reactions}
                     for j in range(len(self.medium)):
                         inf[self.medium[j]] = self.X[i,j]
-                print(inf)
                 LB_vals = dict()
                 for x in model.reactions:
                     LB_vals[x.id] = x.lower_bound
@@ -784,34 +801,25 @@ class TrainingSet:
             augmntXY = True if self.method.lower() == 'vbf_wt' else False
             for i in range(len(treatments)):
                 trmt = treatments[i]
-                print('fetching Vbf for: ',trmt)
 
                 X[i], Y[i], LB[i], self.Pout = \
                 getBioFluxes(self.model, self.Pout, self.medium, self.valmed,
                                     self.Vbf_df, trmt, augmntXY=augmntXY)
-                print("iteration ", i, " Y shape ", Y[i].shape)
 
         # Y[len(treatments)]=rxns
         X = np.asarray(list(X.values()))
         Y = np.asarray(list(Y.values()))
         LB = np.asarray(list(LB.values()))
         rxns = [r.id for r in self.model.reactions]
-        print(len(self.model.reactions))
-        print(Y.shape)
-        print(len(rxns))
         temp_df = pandas.DataFrame(data=Y, columns=rxns)
         temp_df.index = self.treatments
-        print(temp_df.head())
-        temp_df.to_csv("Result/temp_Y.csv")
+        temp_df.to_csv(os.path.join(self.output_dir,"temp_Y.tsv"),sep='\t')
 
-        rxns = [r.id for r in self.model.reactions]
-        temp_df = pandas.DataFrame(data=LB, columns=rxns)
-        temp_df.index = self.treatments
-        print(temp_df.head())
-        temp_df.to_csv("Result/temp_LB.csv")
-        # np.savetxt("temp_Y.csv", Y, delimiter=',')
-        # print(abc)
-
+        # rxns = [r.id for r in self.model.reactions]
+        # temp_df = pandas.DataFrame(data=LB, columns=rxns)
+        # temp_df.index = self.treatments
+        # temp_df.to_csv(os.path.join(self.output_dir,"temp_LB.csv"))
+ 
         # In case mediumbound is 'EB' replace X[i] by Y[i] for i in medium
         if self.mediumbound == 'EB':
             i = 0
@@ -829,7 +837,7 @@ class TrainingSet:
             self.X, self.Y, self.LB = X, Y, LB
         self.size = self.X.shape[0]
 
-        np.savetxt("Result/tempPout.tsv", self.Pout, delimiter='\t')
+        np.savetxt(os.path.join(self.output_dir,"temp_Pout.tsv"), self.Pout, delimiter='\t')
 
     def filter_measure(self, measure=[], verbose=False):
         # Keep only reaction fluxes in measure
