@@ -26,116 +26,134 @@ def determine_ceiling_threshold(df, col='max'):
     common_artifact_value = top_half['rounded'].mode()[0]
     return common_artifact_value * 0.99
 
-def load_fluxes(fluxes_file, verbose=False):
+def load_fluxes(fluxes_file, scores_df, verbose=False):
     print("Loading fluxes from "+fluxes_file)
 
     fva_df = pa.read_csv(fluxes_file, sep='\t')
     
-    # remove reactions added by the flexible biomass package
-    rows_to_drop = fva_df.filter(regex="(?i).*flex.*", axis=0).index
-    fva_df = fva_df.drop(index=rows_to_drop, errors='ignore')
-    
     # because of rounding, there's potentially values that are -0.000
     fva_df['max'] = fva_df['max'].abs()
-    
-    # Fill NA values as zero
-    fva_df[fva_df.columns[1:]] = fva_df[fva_df.columns[1:]].fillna(0)
 
+    # establish base reaction id without direction
+    fva_df['base_id'] = fva_df['reaction'].str.replace(r'_[rfio]$', '', regex=True)
+    
     # Identify most common FVA value (from loops)
     # Use cutoff to find median flux for imputation later
     # Median should to be calculated now before net flux calculations
     cutoff = determine_ceiling_threshold(fva_df, col='max')
-    # Calculate Median Threshold (from non-zero fluxes)
+    # Find set of reactions that would be used to computed median flux (from non-zero fluxes)
+    # But calculate median after calculating net flux
     mask_real = (fva_df['max'] > 1e-6) & (fva_df['max'] < cutoff)
-    median_flux = fva_df.loc[mask_real, 'max'].median()
-    print(f"Median Flux For Imputation: {median_flux:.2f}")
 
     # ---------------------------------------------------------
     # Calculate Net Flux for Reversible Pairs
     # ---------------------------------------------------------
 
-    # 1. Identify the "Base ID" (e.g., 'rxn00001_c0') and Direction ('f' or 'r')
-    # We temporarily add helper columns
-    fva_df['base_rxn_cpt_id'] = fva_df['reaction'].str.replace(r'_[fr]$', '', regex=True)
-    fva_df['base_rxn_direction'] = fva_df['reaction'].str.extract(r'_([fr])$')
+    # 1. NEW: Force expand=False so it returns a clean Series, not a DataFrame
+    fva_df['base_rxn_cpt_id'] = fva_df['reaction'].str.replace(r'_([frio])$', '', regex=True)
+    fva_df['base_rxn_direction'] = fva_df['reaction'].str.extract(r'_([frio])$', expand=False)
 
-    # 2. Split into Forward and Reverse Series for alignment
-    # We index by 'base_match' to line them up perfectly
-    f_fluxes = fva_df[fva_df['base_rxn_direction'] == 'f'].set_index('base_rxn_cpt_id')['max']
-    r_fluxes = fva_df[fva_df['base_rxn_direction'] == 'r'].set_index('base_rxn_cpt_id')['max']
+    # 2. Split into Forward/Outward ('f', 'o') and Reverse/Inward ('r', 'i')
+    fo_df = fva_df[fva_df['base_rxn_direction'].isin(['f', 'o'])].set_index('base_rxn_cpt_id')
+    ri_df = fva_df[fva_df['base_rxn_direction'].isin(['r', 'i'])].set_index('base_rxn_cpt_id')
 
-    # 3. Find Reversible Pairs (IDs that exist in BOTH forward and reverse)
-    reversible_ids = f_fluxes.index.intersection(r_fluxes.index)
-    print(f"Calculating net Flux calculation for {len(reversible_ids)} reversible reaction pairs.")
+    # 3. Find Reversible Pairs
+    reversible_ids = fo_df.index.intersection(ri_df.index)
+    print(f"Calculating net Flux calculation for {len(reversible_ids)} reversible/transport reaction pairs.")
 
     # 4. Calculate Net Flux
-    # Net = |Forward - Reverse|
-    f_vals = f_fluxes.loc[reversible_ids]
-    r_vals = r_fluxes.loc[reversible_ids]
-    net_flux = (f_vals - r_vals).abs()
+    fo_vals = fo_df.loc[reversible_ids, 'max']
+    ri_vals = ri_df.loc[reversible_ids, 'max']
+    net_flux = (fo_vals - ri_vals).abs()
 
     # 5. Determine Dominant Direction
-    # True if Forward > Reverse, False if Reverse > Forward
-    forward_dominant = f_vals > r_vals
+    forward_dominant = fo_vals > ri_vals
 
-    # 6. Build the Update Series
-    # We create two Series: one for Forward IDs, one for Reverse IDs
-    id_f = reversible_ids + '_f'
-    id_r = reversible_ids + '_r'
+    # 6. Build an exact mapping dictionary (Bypasses all Pandas index bugs)
+    id_fo = fo_df.loc[reversible_ids, 'reaction'].values
+    id_ri = ri_df.loc[reversible_ids, 'reaction'].values
+    
+    update_dict = {}
+    for i in range(len(reversible_ids)):
+        if forward_dominant.iloc[i]:
+            update_dict[id_fo[i]] = net_flux.iloc[i]
+            update_dict[id_ri[i]] = 0.0
+        else:
+            update_dict[id_fo[i]] = 0.0
+            update_dict[id_ri[i]] = net_flux.iloc[i]
 
-    # Prepare values: 
-    # If Fwd Dominant: Fwd=Net, Rev=0
-    # If Rev Dominant: Fwd=0, Rev=Net
-    new_f_vals = pa.Series(np.where(forward_dominant, net_flux, 0.0), index=id_f)
-    new_r_vals = pa.Series(np.where(forward_dominant, 0.0, net_flux), index=id_r)
+    # 7. Apply Updates forcefully using the dictionary
+    fva_df['max'] = fva_df.apply(lambda row: update_dict.get(row['reaction'], row['max']), axis=1)
 
-    # Combine into one update packet
-    updates = pa.concat([new_f_vals, new_r_vals])
-    updates.name = 'max'
-
-    # 7. Apply Updates Safely
-    # We set the index to 'reaction' so .update() can match IDs automatically
-    fva_df.set_index('reaction', inplace=True)
-    fva_df.update(updates)
-    fva_df.reset_index(inplace=True)
-
+    # Calculate median_flux to use for imputation
+    median_flux = fva_df.loc[mask_real, 'max'].median()
+    print(f"Median Flux For Imputation: {median_flux:.2f}")
+    
     # =========================================================
-    # Conditional Imputation
+    # Conditional Imputation For Active Enzymes
+    # Median is computed in load_fluxes
     # =========================================================
-
-    # Identify Irreversible Reactions that are blocked
+    
+    # Map the scores, but DO NOT use fillna(0) yet! Leave missing scores as NaN.
+    # Collapse the 57 conditions into a single maximum active score per enzyme
+    unique_score_map = scores_df.groupby('base_id')['reaction_score'].max()
+    fva_df['active_score'] = fva_df['base_id'].map(unique_score_map)
+    
+    # Identify Irreversible Reactions that are blocked AND ACTIVE
     irreversible_mask = ~fva_df['base_rxn_cpt_id'].isin(reversible_ids)
-    blocked_irrev = irreversible_mask & (fva_df['max'] <= 1e-6)
-    print(f"Imputing {blocked_irrev.sum()} blocked irreversible reactions.")
+    
+    # Check that active_score > 0
+    blocked_irrev = irreversible_mask & (fva_df['max'] <= 1e-6) & (fva_df['active_score'] > 0)
+    print(f"Imputing {blocked_irrev.sum()} active, blocked irreversible reactions.")
     fva_df.loc[blocked_irrev, 'max'] = median_flux
 
-    # Identify Reversible Pairs where BOTH directions are 0
-    # (These are the 'Net Zero Loops' or 'Blocked Pairs')
-    # We must check the current values in fva_df
+    # Identify Reversible Pairs where BOTH directions are 0 AND ACTIVE
     fva_df.set_index('reaction', inplace=True, drop=False)
 
     # Grab current values for all pairs
-    current_f = fva_df.loc[id_f, 'max'].values
-    current_r = fva_df.loc[id_r, 'max'].values
+    current_fo = fva_df.loc[id_fo, 'max'].values
+    current_ri = fva_df.loc[id_ri, 'max'].values
+    
+    # Grab the enzyme activity scores for these pairs
+    pair_scores = fva_df.loc[id_fo, 'active_score'].values
 
-    # Check where BOTH are effectively zero
-    both_zero_mask = (current_f <= 1e-6) & (current_r <= 1e-6)
+    # Check where BOTH are effectively zero AND the enzyme is active
+    both_zero_mask = (current_fo <= 1e-6) & (current_ri <= 1e-6) & (pair_scores > 0)
     both_zero_count = both_zero_mask.sum()
 
-    print(f"Imputing {both_zero_count} reversible pairs")
+    print(f"Imputing {both_zero_count} active reversible pairs")
 
-    # Impute ONLY the Forward direction for these pairs
-    # We leave Reverse as 0 to avoid creating a new loop
-    ids_to_impute_f = id_f[both_zero_mask]
-    fva_df.loc[ids_to_impute_f, 'max'] = median_flux
-    ids_to_impute_r = id_r[both_zero_mask]
-    fva_df.loc[ids_to_impute_r, 'max'] = median_flux
+    # =========================================================
+    # Master Imputation Block (Active Pairs + Scored NAs)
+    # =========================================================
+
+    # Get IDs for the reversible pairs where BOTH directions are 0 (and active)
+    ids_to_impute_fo = id_fo[both_zero_mask]
+    ids_to_impute_ri = id_ri[both_zero_mask]
+
+    # Get IDs for reactions where FVA is NA, but we HAVE a reaction score
+    fva_na_but_scored = fva_df['max'].isna() & fva_df['active_score'].notna()
+    ids_na_scored = fva_df.index[fva_na_but_scored].tolist()
+
+    # Combine all targets into a single list
+    all_impute_targets = list(ids_to_impute_fo) + list(ids_to_impute_ri) + ids_na_scored
+
+    # Impute the FULL median capacity in one single operation
+    fva_df.loc[all_impute_targets, 'max'] = median_flux
+
+    print(f"Imputed median flux to {len(all_impute_targets)} total reaction tracks "
+          f"({both_zero_mask.sum()} reversible pairs + {fva_na_but_scored.sum()} FVA NAs).")
+    
+    # Mask out reactions with no score for the Vbf calculation later
+    # You can save this boolean mask to use when you build your Vbf matrix
+    fva_df['calculate_vbf'] = fva_df['active_score'].notna()
 
     # Clean up helper columns
     fva_df.drop(columns=['base_rxn_cpt_id', 'base_rxn_direction'], inplace=True)
-    fva_df.rename(columns={'reaction':'rxn_ID'}, inplace=True)
-    
+
     if verbose: print(fva_df.head())
+    fva_df.rename(columns={'reaction':'rxn_ID'}, inplace=True)
+
     return fva_df
 
 def load_scores(parameters, verbose=False):
@@ -146,13 +164,13 @@ def load_scores(parameters, verbose=False):
 
     if verbose: print(scores_df.head())
 
-    if parameters.useRelab:
-        sep = '\t' if '.tsv' in parameters.relab_scores_file else ','
-        relab_scores_df = pa.read_csv(parameters.relab_scores_file, sep = sep)
-        relab_scores_df[parameters.value_col] = relab_scores_df[parameters.value_col].astype('float') / avogadro
-    else:
-        relab_scores_df = scores_df.copy()
-        relab_scores_df[parameters.value_col] = relab_scores_df[parameters.value_col].astype('float')
+    # if parameters.useRelab:
+    #     sep = '\t' if '.tsv' in parameters.relab_scores_file else ','
+    #     relab_scores_df = pa.read_csv(parameters.relab_scores_file, sep = sep)
+    #     relab_scores_df[parameters.value_col] = relab_scores_df[parameters.value_col].astype('float') / avogadro
+
+    relab_scores_df = scores_df.copy()
+    relab_scores_df[parameters.value_col] = relab_scores_df[parameters.value_col].astype('float')
     
     control_selector = relab_scores_df[parameters.trmt_column].str.contains(parameters.ctrl_trmt, regex=False)
     control = relab_scores_df[control_selector]
@@ -188,9 +206,9 @@ def generate_kapp_vbf(parameters, verbose=False):
     control_df = control_df[control_df['base_id'].str.contains(r'rxn\d{5}', regex=True)]
 
     # Fluxes for duplicated model
+    # reaction scores are used for imputation of fluxes in active enzymes
     fluxes_file = f"{parameters.results_folder}fva.tsv"
-    fva_df = load_fluxes(fluxes_file)
-    fva_df['base_id'] = fva_df['rxn_ID'].str.replace(r'_[rfio]$', '', regex=True)
+    fva_df = load_fluxes(fluxes_file, scores_df)
     
     if verbose:
         print("Control DF: \n", control_df.head())
