@@ -19,9 +19,10 @@
 # Authors: Jean-loup Faulon, jfaulon@gmail.com and Bastien Mollet (LP model)
 ###############################################################################
 
-
 from silence_tensorflow import silence_tensorflow
 silence_tensorflow() # Tensorflow generates WARNINGS because of GPU unused, silence it
+
+import copy
 
 from Library.Build_Dataset import *
 import keras.backend as K
@@ -34,9 +35,7 @@ visible_devices = tf.config.get_visible_devices()
 for device in visible_devices:
     assert device.device_type != 'GPU'
 
-
 # print(tf.config.list_physical_devices('GPU'))
-
 # tf.debugging.set_log_device_placement(False)
 # tf.device('/GPU:0')
 
@@ -71,10 +70,10 @@ from keras_core import ops
 ###############################################################################
 # WandB class for tracking
 ###############################################################################
-import wandb
-print("Using W&B version ", wandb.__version__)
-from wandb.integration.keras import WandbMetricsLogger, WandbEvalCallback, WandbCallback, WandbModelCheckpoint
-wandb.login()
+# import wandb
+# print("Using W&B version ", wandb.__version__)
+# from wandb.integration.keras import WandbMetricsLogger, WandbEvalCallback, WandbCallback, WandbModelCheckpoint
+# wandb.login()
 
 # # Implement your model prediction visualization callback
 # class WandbClfEvalCallback(WandbEvalCallback):
@@ -183,8 +182,6 @@ class CustomLoss(Loss):
         y_true, y_pred = y_true[:,:self.end], y_pred[:,prediction_index:]
         print('after y_true ', y_true.shape)
         print('after y_pred ', y_pred.shape)
-        # print(abc)
-
 
         self.Vin = tf.expand_dims(self.Vin, axis=0)
         self.Vbf = tf.expand_dims(self.Vbf, axis=0)
@@ -638,6 +635,35 @@ def Loss_Vout_constraint(V, Pout, Vout, gradient=False):
 
     return Loss_norm, dLoss
 
+def Loss_Capacity_constraint(V, parameter, gradient=False):
+    # Loss for the total enzyme capacity: V_f + V_r <= Vbf
+    M_enz = parameter.M_enz_tf
+    Vout_enz = parameter.Vout_enz_tf
+    Pout_enz = parameter.Pout_enz_tf
+
+    # Total flux through enzyme: V_total = V @ M_enz
+    V_total = tf.linalg.matmul(V, M_enz)
+    
+    # Excess flux: ReLU(V_total - Vout_enz)
+    Loss = tf.keras.activations.relu(V_total - Vout_enz)
+    
+    # Apply enforcement mask
+    Loss = tf.math.multiply(Loss, Pout_enz)
+
+    # Norm
+    Loss_norm = tf.norm(Loss, axis=1, keepdims=True) / tf.constant(float(Pout_enz.shape[1]), dtype=tf.float32)
+    
+    if gradient:
+        dLoss = tf.math.divide_no_nan(Loss, Loss) # sign/mask
+        dLoss = tf.math.multiply(Loss, dLoss) 
+        # Chain rule: back through M_enz to route gradients correctly to _f and _r
+        dLoss = tf.linalg.matmul(dLoss, M_enz, transpose_b=True)
+        dLoss = dLoss / (float(Pout_enz.shape[1]) * float(Pout_enz.shape[1]))
+    else:
+        dLoss = 0 * V
+
+    return Loss_norm, dLoss
+
 def Loss_Vin(V, Pin, Vin, bound='UB', gradient=False):
     # Gradient for input boundary constraint
     # Loss = ReLU(Pin . V - Vin)
@@ -654,7 +680,7 @@ def Loss_Vin(V, Pin, Vin, bound='UB', gradient=False):
         dLoss = tf.math.divide_no_nan(Loss, Loss) # derivate: Hadamard div.
         dLoss = tf.math.multiply(Loss, dLoss) # !!!
         dLoss = tf.linalg.matmul(dLoss, Pin, b_is_sparse=True) # resizing
-        dLoss = dLoss / (Pin.shape[0] * Pin.shape[0])   # rescaling
+        dLoss = ( dLoss * 2.0 ) / (Pin.shape[0] * Pin.shape[0])   # rescaling
     else:
         dLoss =  0 * V
     return Loss_norm, dLoss
@@ -675,7 +701,7 @@ def Loss_SV(V, S, gradient=False, save=False):
     if gradient:
         dLoss = tf.linalg.matmul(Loss, S, b_is_sparse=True) # derivate
         dLoss = dLoss / (S.shape[0]*S.shape[0])  # rescaling
-        dLoss = dLoss / 2
+        dLoss = dLoss * 2.0
     else:
         dLoss =  0 * V
     return Loss_norm, dLoss
@@ -696,7 +722,7 @@ def Loss_Vpos(V, Vlb, gradient=False):
     if gradient:
         dLoss = - tf.math.divide_no_nan(Loss, Loss) # derivate: Hadamard div.
         dLoss = tf.math.multiply(Loss, dLoss) # !!!
-        dLoss = dLoss / (V.shape[1] * V.shape[1]) # rescaling
+        dLoss = ( dLoss *2.0 ) / (V.shape[1] * V.shape[1]) # rescaling
     else:
         dLoss =  0 * V
     return Loss_norm, dLoss
@@ -716,59 +742,29 @@ def Loss_constraint(V, Vin, Vlb, parameter, gradient=False):
     L = tf.math.divide_no_nan(L, tf.constant(3.0, dtype=tf.float32))
     return L, dL2+dL3+dL4
 
-def Loss_all5(V, Vin, Vout, Vlb, parameter, gradient=False, p_sv=1):
-    # mean square sum of L1, L2, L3, L4, L5
-    if Vout.shape[0] < 1: # No target provided = no Loss_Vout
-        L, dL = Loss_constraint(V, Vin, Vlb, parameter, gradient=gradient)
-        return L, dL
-    # np.savetxt("temp_Vout.csv", Vout, delimiter=',')
-    # np.savetxt("temp_Pout.csv", parameter.Pout, delimiter=',')
-    # np.savetxt("temp_V.csv", V, delimiter=',')
-    L1, dL1 = Loss_Vout(V, parameter.Pout, Vout, gradient=gradient)
-    # L1, dL1 = Loss_Vout_constraint(V, parameter.Pout, Vout, gradient=gradient)
-    # print("L1, dL1: ", L1, dL1)
-    L2, dL2 = Loss_SV(V, parameter.S, gradient=gradient)
-    # L2 = tf.multiply(L2, 10.0)
-    # apply penalty
-    dL2 = dL2 * p_sv
-    L2 = L2 * p_sv
-    # print("L2, dL2: ", L2, dL2)
-    L3, dL3 = Loss_Vin(V, parameter.Pin, Vin,
-                       parameter.mediumbound, gradient=gradient)
-    # print("L3, dL3: ", L3, dL3)
-    L4, dL4 = Loss_Vpos(V, Vlb, gradient=gradient)
-    # print("L4, dL4: ", L4, dL4)
-    L5, dL5 = Loss_Vout_obj(V, parameter=parameter, gradient=gradient)
-    # print("L5, dL5: ", L5, dL5)
-
-    # print(abc)
-
-    # square sum of L1, L2, L3, L4, L5
-    L1 = tf.math.square(L1)
-    L2 = tf.math.square(L2)
-    L3 = tf.math.square(L3)
-    L4 = tf.math.square(L4)
-    L5 = tf.math.square(L5)
-    # print(f"L1: {L1} -- L2: {L2} -- L3: {L3} -- L4: {L4} -- L5: {L5}")
-
-    L = tf.math.reduce_sum(tf.concat([L1, L2, L3, L4, L5], axis=1), axis=1)
-    # divide by 4
-
-    num_const = 5.0
-    L = tf.math.divide_no_nan(L, tf.constant(num_const, dtype=tf.float32))
-    return L, dL1+dL2+dL3+dL4+dL5
-
 def Loss_all(V, Vin, Vout, Vlb, parameter, gradient=False, wt=False, p_sv=1, save=False):
     # mean square sum of L1, L2, L3, L4, L5
     if (Vout is None) or ((Vout.shape[0] is not None) and (Vout.shape[0] < 1)): # No target provided = no Loss_Vout
         L, dL = Loss_constraint(V, Vin, Vlb, parameter, gradient=gradient)
         return L, dL
-    # np.savetxt("temp_Vout.csv", Vout, delimiter=',')
-    # np.savetxt("temp_Pout.csv", parameter.Pout, delimiter=',')
-    # np.savetxt("temp_V.csv", V, delimiter=',')
+    
     # L1, dL1 = Loss_Vout(V, parameter.Pout, Vout, gradient=gradient)
     L1, dL1 = Loss_Vout_constraint(V, parameter.Pout, Vout, gradient=gradient)
-    # print("L1, dL1: ", L1, dL1)
+
+    # --- NET CAPACITY FIX ---
+    # Too soft so we tried proportional clamp
+    # p_data = 10.0  # Weight for biological penalty
+    
+    # if hasattr(parameter, 'M_enz_tf') and parameter.M_enz_tf is not None:
+    #     L1, dL1 = Loss_Capacity_constraint(V, parameter, gradient=gradient)
+    # else:
+    #     L1, dL1 = Loss_Vout_constraint(V, parameter.Pout, Vout, gradient=gradient)
+        
+    # Scale the loss and its gradient (dL is the gradient of the *squared* loss)
+    # L1 = L1 * p_data
+    # dL1 = dL1 * (p_data ** 2)
+    # ------------------------
+
     L2, dL2 = Loss_SV(V, parameter.S, gradient=gradient, save=save)
     # print("L2, dL2: ", L2, dL2)
     # apply penalty
@@ -793,19 +789,22 @@ def Loss_all(V, Vin, Vout, Vlb, parameter, gradient=False, wt=False, p_sv=1, sav
     L2 = tf.math.square(L2)
     L3 = tf.math.square(L3)
     L4 = tf.math.square(L4)
-    # L5 = tf.math.square(L5)
-    # print(f"L1: {L1} -- L2: {L2} -- L3: {L3} -- L4: {L4}")
 
-    # L = tf.math.reduce_sum(tf.concat([L1, L2, L3, L4, L5], axis=1), axis=1)
-    L = tf.math.reduce_sum(tf.concat([L1, L2, L3, L4], axis=1), axis=1)
-    # divide by 4
-    num_const = 4.0
+    if hasattr(parameter, 'objective') and parameter.objective and parameter.objPout is not None:
+        L5, dL5 = Loss_Vout_obj(V, parameter=parameter, gradient=gradient)
+        L5 = tf.math.square(L5)
+        
+        L = tf.math.reduce_sum(tf.concat([L1, L2, L3, L4, L5], axis=1), axis=1)
+        num_const = 5.0
+        dL = dL1 + dL2 + dL3 + dL4 + dL5
+    else:
+        L = tf.math.reduce_sum(tf.concat([L1, L2, L3, L4], axis=1), axis=1)
+        num_const = 4.0
+        dL = dL1 + dL2 + dL3 + dL4
+    # ---------------------------------------
+
     L = tf.math.divide_no_nan(L, tf.constant(num_const, dtype=tf.float32))
-    # if wt:
-    #     L = np.mean(L.numpy())
-
-    dL = dL1+dL2+dL3+dL4
-
+    
     return L, dL, L1, L2, L3, L4
 
 def custom_ReLU(V, Vout, Pout):
@@ -900,8 +899,8 @@ def input_AMN(parameter, verbose=False):
     # For AMN_LP: add b_int or b_ext
     # For AMN_Wt repeat X timestep times
 
-    np.savetxt("Result/param_X.tsv", parameter.X, delimiter='\t')
-    np.savetxt("Result/param_Y.tsv", parameter.Y, delimiter='\t')
+    np.savetxt(os.path.join(parameter.output_dir,"initialize","param_X.tsv"), parameter.X, delimiter='\t')
+    np.savetxt(os.path.join(parameter.output_dir,"initialize","param_Y.tsv"), parameter.Y, delimiter='\t')
     # print(abc)
 
     X, Y = parameter.X, parameter.Y
@@ -961,7 +960,7 @@ def output_AMN(V, Vin, V0, Vlb, parameter, verbose=False):
 
     return outputs
 
-def Gradient_Descent(V, Vin, Vout, Vlb, parameter, mask, trainable=True, history=False, V0_init=-1, svp=15, hardConst=1, verbose=False):
+def Gradient_Descent(V, Vin, Vout, Vlb, parameter, mask, trainable=True, history=False, V0_init=-1, svp=15, hardConst=0, verbose=False):
     # Input:
     # S [m x n]: stoichiometric matrix
     # V [n]: the reaction flux vector
@@ -975,66 +974,213 @@ def Gradient_Descent(V, Vin, Vout, Vlb, parameter, mask, trainable=True, history
     save = False
     # Not history here if trainable
     history = False if trainable else history
-    
-    init = "Vbf_mean" if V0_init < 0 else str(V0_init)
-    name = parameter.trainingfile.split('/')[-1]+f"_noADP_noP_SVP{svp}_hard{hardConst}_V0{init}"
-
-    wandb.init(
-        # Set the project where this run will be logged
-        project="omic_amn",
-        # We pass a run name (otherwise it’ll be randomly assigned, like sunshine-lollypop-10)
-        name=name,
-        # Track hyperparameters and run metadata
-        config={
-        "learning_rate": parameter.learn_rate,
-        "decay_rate": parameter.decay_rate,
-        "architecture": "MM_QP",
-        "dataset": "QPSI",
-        "epochs": parameter.timestep,
-        })
 
     # GD loop
-    Loss_mean_history, Loss_std_history, diff = [], [], 0 * V
+    Loss_mean_history, Loss_std_history = [], []
+    Loss_Data_history, Loss_Mass_history = [], []
+    Dead_history, StdDev_history = [], []
+    prev_V_val = None                    
+    diff = 0 * V
+
+    # --- EARLY STOPPING SETUP ---
+    best_loss = float('inf')
+    patience_counter = 0
+    patience_limit = 500  # How many steps to wait before giving up
+    min_delta = 1e-2      # Minimum relative improvement
+    # ---------------------------------
+
+    # for saving checkpoint files
+    ckpt_dir = os.path.join(parameter.output_dir, "checkpoints")
+    np.savetxt(os.path.join(ckpt_dir, "V_step_0.tsv"), V.numpy(), delimiter='\t')
+
+    # --- INITIAL LOSS CALCULATION FOR STEP 0 ---
+    # Perform a forward pass without calculating gradients
+    L_0, dL_0, lVbf_0, Lsv_0, LVin_0, LPos_0 = Loss_all(
+        V, Vin, Vout, Vlb, parameter, gradient=False, p_sv=svp, save=False
+    )
+
+    # Square the data and mass losses locally to see the driving math
+    lVbf_sq_0 = tf.math.square(lVbf_0)
+    Lsv_sq_0 = tf.math.square(Lsv_0)
+
+    # Flatten tensors for TSV logging
+    L_val_0 = L_0.numpy().flatten()
+    lVbf_val_0 = lVbf_0.numpy().flatten()
+    Lsv_val_0 = Lsv_0.numpy().flatten()
+    lVbf_sq_val_0 = lVbf_sq_0.numpy().flatten()
+    Lsv_sq_val_0 = Lsv_sq_0.numpy().flatten()
+    
+    loss_matrix_0 = np.column_stack((L_val_0, lVbf_val_0, Lsv_val_0, lVbf_sq_val_0, Lsv_sq_val_0))
+    loss_file_0 = os.path.join(ckpt_dir, "Losses_step_0.tsv")
+    
+    np.savetxt(loss_file_0, loss_matrix_0, delimiter='\t', 
+               header='Total_Loss\tData_Loss\tMass_Loss\tData_Loss_Sq\tMass_Loss_Sq', comments='')
+    # -------------------------------------------
+
     for t in range(1, parameter.timestep+1):  # Update V with GD
         # Get Loss and gradient
         L, dL, lVbf, Lsv, LVin, LPos = Loss_all(V, Vin, Vout, Vlb, parameter, gradient=True, p_sv = svp, save=save)
         save = False
+
+        # --- NEW: L1 REGULARIZATION FOR FREE REACTIONS ---
+        lambda_l1 = 1e-4  # The strength of the squeeze
+        
+        if hasattr(parameter, 'M_enz_tf') and parameter.M_enz_tf is not None:
+            # 1. Create a mask of the Enforced base targets (1.0 if enforced, 0.0 if free)
+            is_enforced_base = tf.cast(parameter.Pout_enz_tf > 0.5, dtype=tf.float32)
+            
+            # 2. Map that mask back to the split reactions (v_pos and v_neg)
+            is_enforced_split = tf.linalg.matmul(is_enforced_base, parameter.M_enz_tf, transpose_b=True)
+            
+            # 3. Invert it to target ONLY the Free reactions (0.0 if enforced, 1.0 if free)
+            is_free_split = 1.0 - is_enforced_split
+            
+            # 4. Apply the L1 penalty by adding it directly to the gradient
+            dL = dL + (lambda_l1 * is_free_split)
+        else:
+            # Fallback: Apply to all fluxes (standard pFBA) if masks are missing
+            dL = dL + lambda_l1
+        # -------------------------------------------------
+
         dL = tf.math.multiply(dL, mask) # Apply mask on dL
+
         # Update V with learn and decay rates
         diff = parameter.decay_rate * diff - parameter.learn_rate * dL
-        V = V + diff
         
-        pre_relu_V = V
-        if hardConst == 1:
-            V = tf.keras.activations.relu(V)
-        if hardConst == 2:
-            V = custom_ReLU(V, Vout, parameter.Pout)
+        ########### Gradient Descent ###############
+        # V = V + diff
+        ########### End Gradient Descent ###############
+
+        ########### Projected Gradient Descent and Momentum Kill-Switch ###############
+        V_unclipped = V + diff
+
+        # Force any negative fluxes back to exactly 0.0
+        V = tf.maximum(0.0, V_unclipped)
+
+        # If the unclipped V was negative, it hit the wall. 
+        # We must zero out its momentum (diff) so it doesn't keep pushing down next step.
+        active_mask = tf.cast(V > 0.0, dtype=tf.float32)
+        diff = diff * active_mask
+        ########### End Projected Gradient Descent ###############
+
+        # --- NEW: PROPORTIONAL CLAMP (10% BUFFER) ---
+        if hasattr(parameter, 'M_enz_tf') and parameter.M_enz_tf is not None:
+            # 1. Calculate current combined capacity: V_total = v_pos + v_neg
+            V_total = tf.linalg.matmul(V, parameter.M_enz_tf)
+            
+            # 2. Define the hard ceiling (110% of Vbf)
+            Limit = 1.1 * parameter.Vout_enz_tf
+            
+            # 3. Calculate scaling factor (Limit / V_total). If under limit, scale is 1.0.
+            Scale_base = tf.where(V_total > Limit, Limit / (V_total + 1e-9), 1.0)
+            
+            # 4. Only apply the clamp to enforced reactions
+            Scale_base = tf.where(parameter.Pout_enz_tf > 0.5, Scale_base, 1.0)
+            
+            # 5. Map the base scales back to the split fluxes (v_pos and v_neg get same scale)
+            Scale_split = tf.linalg.matmul(Scale_base, parameter.M_enz_tf, transpose_b=True)
+            
+            # 6. Apply the clamp to V
+            V_clamped = V * Scale_split
+            
+            # Kill momentum for components that got clamped down so they don't bounce
+            ceiling_mask = tf.cast(V_clamped >= V - 1e-6, dtype=tf.float32)
+            diff = diff * ceiling_mask
+            
+            V = V_clamped
+        # ---------------------------------------------
+
+        # Save the true, clean, non-negative state to checkpoints
+        pre_relu_V = V 
         
+        # Apply the Vbf Data Ceilings
+        if(hardConst > 0):
+            print(f"Warning: code is now ignoring hardConst variable! It can be re-purposed in the future.")
+        # if hardConst == 1:
+        #     V = tf.keras.activations.relu(V) # Redundant now, but mathematically safe
+        # if hardConst == 2:
+        #     V = custom_ReLU(V, Vout, parameter.Pout)
+
+        # Save V every 100 steps
+        if t % 100 == 0:
+            # We use f-string to include the step number in the filename
+            ckpt_file = os.path.join(ckpt_dir, f"V_step_{t}.tsv")
+            np.savetxt(ckpt_file, pre_relu_V.numpy(), delimiter='\t')
+
+            # --- NEW: SAVE PER-CONDITION LOSS SPLITS ---
+            # Flatten the tensors into standard 1D numpy arrays 
+            # (Assuming 57 conditions, these will be arrays of length 57)
+            L_val = L.numpy().flatten()       # Total Loss
+            lVbf_val = lVbf.numpy().flatten() # Data Loss (Vbf)
+            Lsv_val = Lsv.numpy().flatten()   # Mass Balance Loss (S*v)
+            
+            # Stack them as columns: [Total_Loss, Data_Loss, Mass_Loss]
+            # Resulting shape: (57 rows, 3 columns)
+            loss_matrix = np.column_stack((L_val, lVbf_val, Lsv_val))
+            
+            # Save to a companion TSV file
+            loss_file = os.path.join(ckpt_dir, f"Losses_step_{t}.tsv")
+            
+            # Adding a header ensures you know exactly which column is which during a posteriori analysis
+            np.savetxt(loss_file, loss_matrix, delimiter='\t', 
+                       header='Total_Loss\tData_Loss\tMass_Loss', comments='')
+            # -------------------------------------------
+
         # Compile Loss history
         if history:
             Loss_mean, Loss_std = np.mean(L), np.std(L)
             lVbf_mean, Lsv_mean, LVin_mean, LPos_mean = np.mean(lVbf), np.mean(Lsv), np.mean(LVin), np.mean(LPos)
+
             Loss_mean_history.append(Loss_mean)
             Loss_std_history.append(Loss_std)
-            np.savetxt("Result/PredEval_temp.csv", V, delimiter=',')
-            # if verbose and (np.log10(t) == int(np.log10(t)) \
-            #                 or t/1.0e3 == int(t/1.0e3)):
+
+            Loss_Data_history.append(lVbf_mean) # Vbf fit
+            Loss_Mass_history.append(Lsv_mean) # Mass Balance fit
+            np.savetxt(os.path.join(parameter.output_dir,"PredEval_temp.csv"), V, delimiter=',')
+
+            # --- NEW: Calculate Dead Fluxes and Ratio StdDev ---
+            current_V_val = V.numpy().flatten()
+            if prev_V_val is not None:
+                active_mask = np.abs(prev_V_val) > 1e-6
+                dead_count = len(prev_V_val) - np.sum(active_mask)
+                
+                if np.sum(active_mask) > 0:
+                    ratios = current_V_val[active_mask] / prev_V_val[active_mask]
+                    scaling_std = np.std(ratios)
+                else:
+                    scaling_std = 0.0
+            else:
+                dead_count = 0
+                scaling_std = 0.0
+                
+            Dead_history.append(dead_count)
+            StdDev_history.append(scaling_std)
+            prev_V_val = current_V_val
+
             if verbose and (t/1.0e3 == int(t/1.0e3)):
                 save = True
-                print('QP-Loss', t, Loss_mean, Loss_std, ' -> bio flux ', V[:, parameter.bio_id])
-                # log metrics using wandb.log
-                report_dict = {f'{parameter.treatments[i]}_bio':V[i, parameter.bio_id] \
-                                    for i in range(len(parameter.treatments))}
-                report_dict['epochs']   = t
-                report_dict['loss']     = Loss_mean
-                report_dict['lossVbf']  = lVbf_mean
-                report_dict['lossSV']   = Lsv_mean
-                report_dict['lossVin']  = LVin_mean
-                report_dict['lossVpos'] = LPos_mean
-                wandb.log(report_dict)
+                print('QP-Loss', t, Loss_mean, Loss_std)
 
-    wandb.finish()
-    return pre_relu_V, Loss_mean_history, Loss_std_history
+        # --- EARLY STOPPING CHECK ---
+        # We use the max of the total loss tensor L (calculated at the top of the loop)
+        # Stops only when the highest single-condition loss plateaus
+        current_loss = tf.reduce_max(L).numpy()
+        
+        # Calculate relative improvement: (best - current) / best
+        if best_loss == float('inf') or (best_loss - current_loss) / best_loss > min_delta:
+            best_loss = current_loss
+            patience_counter = 0  # Reset patience if we made good progress
+        else:
+            patience_counter += 1 # Increment if the improvement was too small
+            
+        if patience_counter >= patience_limit:
+            print(f"\n--- EARLY STOPPING ---")
+            print(f"Triggered at Step {t}. The solver plateaued.")
+            print(f"Saved massive compute time by skipping the remaining {parameter.timestep - t} steps!\n")
+            break
+        # ---------------------------------
+
+    return pre_relu_V, Loss_mean_history, Loss_std_history, Loss_Data_history, Loss_Mass_history, Dead_history, StdDev_history
 
 def get_V0(inputs, parameter, targets, lower_bounds, trainable, V0_init=-1, verbose=False):
     # Get initial vector V0 from input and target
@@ -1078,16 +1224,59 @@ def get_V0(inputs, parameter, targets, lower_bounds, trainable, V0_init=-1, verb
         # make intial flux equal to Vbf or avg Vbf 
         # if ('vbf' in parameter.method.lower()):
         Vout = tf.convert_to_tensor(np.float32(targets))
-        V0 = V0 + Vout
+
+        # Add Vout to the internal reactions (mask == 1)
+        # Leave the exchange reactions (mask == 0) at their Vin values
+        V0 = V0 + tf.math.multiply(Vout, mask)
 
         # set a threshold of the lowest Vbf to replace by the average
         threshold = 1e-6  
-        # compute Vbf mean 
-        Vbf_mean = tf.reduce_mean(Vout)
-        print(Vbf_mean)
+
+        # ==========================================================
+        # --- BASE-REACTION CAPACITY-AWARE INITIALIZATION ---
+        # ==========================================================
+        # Group the target fluxes by their Base Reaction ID to avoid double-counting FVA artifacts
+        base_caps = {}
+        targets_np = targets  
+
+        for i, name in enumerate(parameter.reactions):
+            clean_name = name.decode('utf-8') if isinstance(name, bytes) else str(name)
+            # Strip directional suffixes to get the core enzyme ID
+            base_id = clean_name.replace('_f','').replace('_r','').replace('_o','').replace('_i','').strip()
+            
+            if base_id not in base_caps:
+                base_caps[base_id] = np.zeros(targets_np.shape[0])
+            
+            # Take the MAX of the directional tracks
+            # If FVA says _f=1.9 and _r=1.9, the true total capacity is just 1.9!
+            base_caps[base_id] = np.maximum(base_caps[base_id], targets_np[:, i])
+            
+        # Calculate the mean of ONLY the active, un-duplicated base capacities
+        all_caps = np.array(list(base_caps.values())).flatten()
+        active_caps = all_caps[all_caps > threshold]
+        true_vbf_mean = np.mean(active_caps) if len(active_caps) > 0 else 0.0
+        
+        print(f"Computed True Base-Level Vbf Mean: {true_vbf_mean:.4f}")
+
+        # Use Pout to identify unmeasured reactions so we don't overwrite real biological zeros
+        # Pout shape is (reactions, targets). Summing across axis 1 reveals if a reaction is mapped
+        pout_sum = np.sum(np.abs(parameter.Pout), axis=1)
+        is_unmapped = pout_sum == 0
+
+        # Convert to a tensor that broadcasts across all conditions
+        is_unmapped_tensor = tf.convert_to_tensor(is_unmapped, dtype=tf.bool)
+        is_unmapped_tensor = tf.expand_dims(is_unmapped_tensor, axis=0) 
+        
+        # Identify slots that are BOTH empty (< threshold) AND unmapped in Pout
+        needs_imputation = tf.logical_and(V0 < threshold, is_unmapped_tensor)
+
+        # Apply Half-Capacity to empty unmapped tracks ONLY to establish Vbf as a single value for net flux
+        Vbf_half_capacity = true_vbf_mean / 2.0
+        V0 = tf.where(needs_imputation, Vbf_half_capacity, V0)
+        # ==========================================================
 
         # Replace all values in V0 less than the threshold with Vbf_mean
-        V0 = tf.where(V0 < threshold, Vbf_mean, V0)
+        # V0 = tf.where(V0 < threshold, Vbf_mean, V0)
         # # for exact match, use this: 
         # V0 = tf.where(tf.equal(V0, 0), tf.constant(Vbf_mean, dtype=V0.dtype), V0)
     
@@ -1095,15 +1284,65 @@ def get_V0(inputs, parameter, targets, lower_bounds, trainable, V0_init=-1, verb
         # set everything to 1000\Vbf_mean
         V0 = tf.where(V0 >= 0, V0_init, V0)
 
-
     Vlb = tf.convert_to_tensor(np.float32(lower_bounds))
     mask = ones if parameter.mediumbound == 'UB' else mask
 
-    np.savetxt("Result/V0_startVbf.csv", V0, delimiter=',')
+    # ======================================================================
+    # --- DYNAMIC FVA WARM START INJECTION ---
+    # ======================================================================
+    # Check if your custom exchanges dictionary exists and is not empty
+    if hasattr(parameter, 'exchanges') and parameter.exchanges is not None:
+        print(f"\n[Init] Injecting {len(parameter.exchanges)} exchange flux ceilings into V0...")
+        
+        # 1. Convert V0 from a TensorFlow tensor to a numpy array for easy assignment
+        V0_np = V0.numpy()
+        
+        # 2. Build a quick lookup dictionary to find the column index for each reaction
+        col_map = {}
+        for i, name in enumerate(parameter.reactions):
+            # Safely handle both byte strings (from NPZ) and normal strings
+            clean_name = name.decode('utf-8') if isinstance(name, bytes) else str(name)
+            col_map[clean_name.strip()] = i
+            
+        # 3. Iterate through your parsed dictionary and overwrite the columns
+        replaced_count = 0
+        for rxn_id, flux_max in parameter.exchanges.items():
+            if rxn_id in col_map:
+                col_idx = col_map[rxn_id]
+                # Broadcasts the max flux perfectly across all 57 condition rows
+                V0_np[:, col_idx] = flux_max  
+                replaced_count += 1
+                
+        print(f"-> Successfully replaced {replaced_count} matrix columns.\n")
+        
+        # 4. Cast the array back into a TensorFlow Tensor so the GD loop can use it
+        V0 = tf.convert_to_tensor(V0_np, dtype=tf.float32)
+    # ======================================================================
+
+    # ======================================================================
+    # --- 2. INDEPENDENT BIO1 OVERRIDE (MANDATORY) ---
+    # ======================================================================
+    # Always force 'bio1' to 0.0, wiping out Vbf_mean or any other init
+    V0_np = V0.numpy() # Grab current state (includes FVA if it ran)
+    bio_idx = -1
+    
+    for i, name in enumerate(parameter.reactions):
+        clean_name = name.decode('utf-8') if isinstance(name, bytes) else str(name)
+        if clean_name.strip() == 'bio1':
+            bio_idx = i
+            break
+            
+    if bio_idx != -1:
+        V0_np[:, bio_idx] = 0.0
+        print("-> [Init] Successfully forced 'bio1' initialization to 0.0")
+        V0 = tf.convert_to_tensor(V0_np, dtype=tf.float32)
+    # ======================================================================
+
+    np.savetxt(os.path.join(parameter.output_dir,"initialize","V0_startVbf.csv"), V0, delimiter=',')
 
     return V0, Vin, Vout, Vlb, mask
 
-def QP_layers(inputs, parameter, targets = np.asarray([]).reshape(0,0), lower_bounds=np.asarray([]).reshape(0,0), trainable=True, history=False, V0_init=-1, svp=15, hardConst=1, verbose=False):
+def QP_layers(inputs, parameter, targets = np.asarray([]).reshape(0,0), lower_bounds=np.asarray([]).reshape(0,0), trainable=True, history=False, V0_init=-1, svp=15, hardConst=0, verbose=False):
     # Build and return an architecture using GD
     # The function is used with and without targets
     # - With targets there is no training set and GD is run
@@ -1120,17 +1359,10 @@ def QP_layers(inputs, parameter, targets = np.asarray([]).reshape(0,0), lower_bo
 
     V0, Vin, Vout, Vlb, mask = get_V0(inputs, parameter, targets, lower_bounds, trainable, V0_init=V0_init, verbose=verbose)
 
-    print("V0: ", V0.shape)
-    print("Vin: ", Vin.shape)
-    print("Vout: ", Vout.shape)
-    print("Vlb: ", Vlb.shape)
-    print("mask: ", mask.shape)
-    # print(abc)
-
-    V, Loss_mean, Loss_std = Gradient_Descent(V0, Vin, Vout, Vlb, parameter, mask, trainable=trainable, history=history, V0_init=V0_init, svp=svp, hardConst=hardConst, verbose=verbose)
+    V, Loss_mean, Loss_std, Loss_Data, Loss_Mass, Dead_H, StdDev_H = Gradient_Descent(V0, Vin, Vout, Vlb, parameter, mask, trainable=trainable, history=history, V0_init=V0_init, svp=svp, hardConst=hardConst, verbose=verbose)
     outputs = output_AMN(V, Vin, V0, Vlb, parameter, verbose=verbose)
 
-    return outputs, Loss_mean, Loss_std
+    return outputs, Loss_mean, Loss_std, Loss_Data, Loss_Mass, Dead_H, StdDev_H
 
 def AMN_QP(parameter, trainable=True, verbose=False):
     # Build and return an AMN with training
@@ -1141,7 +1373,7 @@ def AMN_QP(parameter, trainable=True, verbose=False):
     # Get dimensions and build model
     input_dim, output_dim = parameter.X.shape[1], parameter.output_dim
     inputs = Input(shape=(input_dim,))
-    outputs, loss_h, loss_std_h = QP_layers(inputs, parameter,
+    outputs, loss_h, loss_std_h, _, _, _, _ = QP_layers(inputs, parameter,
                               trainable=trainable,
                               history=False,
                               verbose=verbose)
@@ -1240,8 +1472,7 @@ class RNNCell(keras.layers.Layer): # RNN Cell, as a layer subclass.
         W = tf.math.multiply(self.M2V,self.wr_V)
         V = tf.linalg.matmul(M,tf.transpose(W),b_is_sparse=True)
         V = V + V0 + self.br_V
-        # print("RNN call -> ", V.shape)
-        # print("End RNN call")
+
         return V, [V]
 
     def get_config(self): # override tf.get_config to save RNN model
@@ -1318,16 +1549,29 @@ def AMN_Wt(parameter, verbose=False):
 # using QP 
 ###############################################################################
 
-def write_loss(f_name, param, mean_history, std_history):
+def write_loss(f_name, param, mean_history, std_history, data_history, mass_history, dead_history, stddev_history):
     if f_name is None:
         return 0
-    timesteps = np.array(range(1, param.timestep+1))
+    timesteps = np.arange(1, len(mean_history) + 1)
     losses = np.array(mean_history)
     stdevs = np.array(std_history)
-    to_write = np.concatenate([timesteps.reshape((len(timesteps), 1)), \
-        losses.reshape((len(losses), 1)), \
-        stdevs.reshape((len(stdevs), 1))], axis=1)
-    np.savetxt(f_name, to_write, delimiter=',')
+    data_loss = np.array(data_history)
+    mass_loss = np.array(mass_history)
+    dead_arr = np.array(dead_history)
+    stddev_arr = np.array(stddev_history)
+    
+    to_write = np.concatenate([
+        timesteps.reshape((len(timesteps), 1)), 
+        losses.reshape((len(losses), 1)), 
+        stdevs.reshape((len(stdevs), 1)),
+        data_loss.reshape((len(data_loss), 1)),
+        mass_loss.reshape((len(mass_loss), 1)),
+        dead_arr.reshape((len(dead_arr), 1)),
+        stddev_arr.reshape((len(stddev_arr), 1))
+    ], axis=1)
+    
+    header = "Timestep,Total_Loss,Std_Dev,Data_Loss_Vbf,Mass_Loss_SV,Dead_Fluxes,Ratio_StdDev"
+    np.savetxt(f_name, to_write, delimiter=',', header=header)
     return 0
 
 def write_targets(f_name, param, Ypred):
@@ -1354,7 +1598,7 @@ def get_flux_output(param, output):
                     param.Y.shape[1]+NBR_CONSTRAINT+len_fluxes) (output)
     return Vf
 
-def run_MM_QP(parameter, loss_outfile=None, targets_outfile=None, history=True, V0_init=-1, svp=15, hardConst=1, verbose=False):
+def run_MM_QP(parameter, loss_outfile=None, targets_outfile=None, history=True, V0_init=-1, svp=15, hardConst=0, verbose=False):
     # Solve LP or QP without training
     # inputs:
     # - problem parameter, history flag
@@ -1371,23 +1615,21 @@ def run_MM_QP(parameter, loss_outfile=None, targets_outfile=None, history=True, 
     lower_bounds = param.LB
 
     # run QP
-    output, Loss_mean, Loss_std = QP_layers(inputs, param, targets=targets,
+    output, Loss_mean, Loss_std, Loss_Data, Loss_Mass, Dead_H, StdDev_H = QP_layers(inputs, param, targets=targets,
                     lower_bounds=lower_bounds, trainable=False, history=history, 
                     V0_init=V0_init, svp=svp, hardConst=hardConst, verbose=verbose)
     Ypred = CROP(1,0,param.Y.shape[1]) (output)
     Vf = get_flux_output(param, output)
+
     # compute R2 and write losses and targets
-    # print(param.Y)
-    # print(Ypred.numpy())
     r2 = r2_score(param.Y, Ypred.numpy(), multioutput='variance_weighted')
-    write_loss(loss_outfile, parameter, Loss_mean, Loss_std)
-    # write_targets(targets_outfile, parameter, Ypred)
+    write_loss(loss_outfile, parameter, Loss_mean, Loss_std, Loss_Data, Loss_Mass, Dead_H, StdDev_H)
     write_targets(None, parameter, Ypred)
 
     return Vf.numpy(), ReturnStats(r2, 0, Loss_mean[-1], Loss_std[-1],
                                    0, 0, 0, 0)
 
-def MM_QP(parameter, loss_outfile=None, targets_outfile= None, history=True, V0_init=-1, svp=15, hardConst=1, verbose=False):
+def MM_QP(parameter, loss_outfile=None, targets_outfile= None, history=True, V0_init=-1, svp=15, hardConst=0, verbose=False):
     # Solve QP without training
     return run_MM_QP(parameter, loss_outfile=loss_outfile, targets_outfile=targets_outfile, history=history, V0_init=V0_init, svp=svp, hardConst=hardConst, verbose=verbose)
 
@@ -1600,23 +1842,23 @@ def train_model(parameter, Xtrain, Ytrain, Xtest, Ytest, verbose=False):
         print('batch  -> ', model.batch_size)
         # csv_logger = CSVLogger('log.csv', append=True, separator=';')
         # save_freq
-        run = wandb.init(config={"learning_rate": parameter.learn_rate,
-                            "decay_rate": parameter.decay_rate,
-                            "architecture": "AMM_wt",
-                            "dataset": "secMet",
-                            "epochs": parameter.timestep,
-                            "bs": parameter.batch_size
-                            })
-        os.environ["WANDB_SILENT"] = "true"
+        # run = wandb.init(config={"learning_rate": parameter.learn_rate,
+        #                     "decay_rate": parameter.decay_rate,
+        #                     "architecture": "AMM_wt",
+        #                     "dataset": "secMet",
+        #                     "epochs": parameter.timestep,
+        #                     "bs": parameter.batch_size
+        #                     })
+        # os.environ["WANDB_SILENT"] = "true"
 
         history = Net.model.fit(Xtrain, Ytrain,
                                 validation_data=(Xtest, Ytest),
                                 epochs=model.epochs,
                                 batch_size=model.batch_size,
-                                callbacks=callbacks+[WandbMetricsLogger(),
-                                                    WandbModelCheckpoint(filepath="models/"),]
-                                                    # csv_logger,]
-                                , verbose=2)
+                                # callbacks=callbacks+[WandbMetricsLogger(),
+                                #                     WandbModelCheckpoint(filepath="models/"),]
+                                #                     # csv_logger,],
+                                verbose=2)
                                 # , run_eagerly=True)
         # evaluate
         ytrain, stats = evaluate_model(Net.model, Xtrain, Ytrain,
@@ -1636,7 +1878,7 @@ def train_model(parameter, Xtrain, Ytrain, Xtest, Ytest, verbose=False):
           (otrain, otest, ltrain, ltest, kiter))
 
     # Close the W&B run
-    run.finish()
+    # run.finish()
     return Net, ytrain, ytest, otrain, ltrain, otest, ltest, history
 
 def train_evaluate_model(parameter, verbose=False):
@@ -1671,7 +1913,7 @@ def train_evaluate_model(parameter, verbose=False):
         stats = ReturnStats(otrain, 0, ltrain, 0, otest, 0, ltest, 0)
 
         temp_pred = Net.model.predict(X)
-        np.savetxt("Result/final_PredEval.csv", temp_pred, delimiter=',')
+        np.savetxt(os.path.join(parameter.output_dir,"final_PredEval.csv"), temp_pred, delimiter=',')
 
         return Net, ytrain, stats, history
 
@@ -1710,8 +1952,8 @@ def train_evaluate_model(parameter, verbose=False):
     Pred, _ = evaluate_model(Netmax.model, X, Y, param, verbose=verbose)
     Ypred = Pred if param.niter > 0 else Ypred
 
-    # np.savetxt("Result/final_Ypred.csv", Ypred, delimiter=',')
-    # np.savetxt("Result/final_PredEval.csv", Pred, delimiter=',')
+    # np.savetxt(os.path.join(parameter.output_dir,"final_Ypred.csv"), Ypred, delimiter=',')
+    # np.savetxt(os.path.join(parameter.output_dir,"final_PredEval.csv"), Pred, delimiter=',')
 
     # Get Stats
     stats = ReturnStats(np.mean(Otrain), np.std(Otrain),
@@ -1739,16 +1981,38 @@ class Neural_Model:
                  niter=0, xfold=5, # Cross valisation LOO does not work
                  es=False, # early stopping
                  biomass_max=4.0,
+                 output_dir = ".",
+                 exchanges = None, # for initialization of exchange reactions
                  verbose=False,
                 ):
         # Create empty object
         if model_type == '':
             return
+        
+        self.output_dir = output_dir
+        if not os.path.exists(self.output_dir):
+            return
+
         # model architecture parameters
         self.trainingfile = trainingfile
         self.model = model
         self.model_type = model_type
-        self.objective = [objective[1]] if objective[0] else []
+
+        if objective is not None and len(objective) > 1:
+            self.objective = [objective[1]] if objective[0] else []
+            target_rxn_id = objective[1]
+        else:
+            self.objective = []
+            target_rxn_id = None
+
+        if target_rxn_id is not None and target_rxn_id in self.reactions:
+            self.bio_id = self.reactions.tolist().index(target_rxn_id)
+        else:
+            # Fallback if no objective provided or reaction not found
+            self.bio_id = 0 
+            if verbose and target_rxn_id:
+                print(f"Warning: Objective '{target_rxn_id}' not found in reactions.")
+
         self.scaler = float(scaler) # From bool to float
         self.input_dim = input_dim
         self.output_dim = output_dim
@@ -1759,6 +2023,11 @@ class Neural_Model:
         self.timestep = timestep
         self.learn_rate = learn_rate
         self.decay_rate = decay_rate
+
+        if(exchanges is not None):
+            self.exchanges = exchanges
+            print("Exchanges: ",self.exchanges)
+
         # Training parameters
         self.epochs = epochs
         self.regression = regression
@@ -1771,11 +2040,9 @@ class Neural_Model:
         self.mediumbound = '' # initialization
         self.reactions = list()
         self.treatments = list()
+
         # Get additional parameters (matrices)
         self.get_parameter(biomass_max=biomass_max, verbose=verbose)
-        self.bio_id = self.reactions.tolist().index(objective[1])
-        # print(self.bio_id)
-        # print(abc)
 
     def get_parameter(self, biomass_max=4.0, verbose=False):
         # load parameter file if provided
@@ -1828,16 +2095,64 @@ class Neural_Model:
         ## Set a maximum value for biomass reaction
         #   -> use biomass as an objective 
         if 'MM_' in self.model_type:
-            print("filtering the MM")
             self.Yall = None
 
             if self.objective:
                 # parameter.filter_measure(measure=self.objective, verbose=verbose)
                 self.objPout, parameter.Y, self.objY, self.Yall = parameter.filter_measure_return(measure=parameter.objective, biomass_max=biomass_max, verbose=verbose)
 
+        # --- NEW: ENZYME CAPACITY AGGREGATION SETUP ---
+        try:
+            rxn_names = [n.decode('utf-8') if isinstance(n, bytes) else str(n) for n in self.reactions]
+            base_names = []
+            mapping = []
+            
+            # Suffixes that represent directional splits of a single enzyme/transporter
+            directional_suffixes = ('_f', '_r', '_i', '_o')
+            
+            for name in rxn_names:
+                # Check if the name ends with any of our directional split markers
+                if name.endswith(directional_suffixes):
+                    base = name[:-2]
+                else:
+                    base = name
+                    
+                if base not in base_names:
+                    base_names.append(base)
+                mapping.append(base_names.index(base))
+
+            num_split = len(rxn_names)
+            num_base = len(base_names)
+
+            M_enz_np = np.zeros((num_split, num_base), dtype=np.float32)
+            Vout_raw = self.Y
+            Pout_raw = self.Pout
+
+            if len(Pout_raw.shape) == 2 and Pout_raw.shape[0] == Pout_raw.shape[1]:
+                Pout_1d = np.diag(Pout_raw)
+            else:
+                Pout_1d = Pout_raw[0] if len(Pout_raw.shape) > 1 else Pout_raw
+
+            Vout_enz_np = np.zeros((Vout_raw.shape[0], num_base), dtype=np.float32)
+            Pout_enz_np = np.zeros((1, num_base), dtype=np.float32)
+
+            for i, j in enumerate(mapping):
+                M_enz_np[i, j] = 1.0
+                if Vout_raw is not None and Vout_raw.shape[0] > 0 and Vout_raw.shape[1] > i:
+                    Vout_enz_np[:, j] = np.maximum(Vout_enz_np[:, j], Vout_raw[:, i])
+                if Pout_1d is not None and len(Pout_1d) > i:
+                    Pout_enz_np[0, j] = np.maximum(Pout_enz_np[0, j], Pout_1d[i])
+
+            self.M_enz_tf = tf.constant(M_enz_np)
+            self.Vout_enz_tf = tf.constant(Vout_enz_np)
+            self.Pout_enz_tf = tf.constant(Pout_enz_np)
+        except Exception as e:
+            print("Notice: Could not build enzyme aggregation matrices:", e)
+            self.M_enz_tf = None
+        # ----------------------------------------------
+
     def save(self, filename, verbose=False):
         fileparam = filename + "_param.csv"
-        print(fileparam)
         filemodel = filename + "_model.h5"
         s = str(self.trainingfile) + ","\
                     + str(self.model_type) + ","\
