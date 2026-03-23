@@ -1,22 +1,19 @@
-import os
-import sys
 import numpy as np
-from time import time
+import time
 import datetime
 from Library.Build_Model import *
-
 
 # We declare this function here and not in the
 # function-storing python file to modify it easily
 # as it can change the printouts of the methods
-def printout(V, Stats, model,param, id='all'):
+def printout(V, Stats, model, param, id='all'):
     # printing Stats
     print("R2 = %.2f (+/- %.2f) Constraint = %.2f (+/- %.2f)" % \
           (Stats.train_objective[0], Stats.train_objective[1],
            Stats.train_loss[0], Stats.train_loss[1]))
     Vout = tf.convert_to_tensor(np.float32(model.Y))
-    Loss_norm, dLoss = Loss_Vout(V, model.Pout, Vout)
-    print('Loss Targets', np.mean(Loss_norm))
+    Loss_norm, dLoss = Loss_Vout_constraint(V, model.Pout, Vout)
+    print('Loss Constrained Targets', np.mean(Loss_norm))
     Loss_norm, dLoss = Loss_SV(V, model.S)
     print('Loss SV', np.mean(Loss_norm))
     Vin = tf.convert_to_tensor(np.float32(model.X))
@@ -28,81 +25,64 @@ def printout(V, Stats, model,param, id='all'):
     print('Loss Vin bound', np.mean(Loss_norm))
     Loss_norm, dLoss = Loss_Vpos(V, Vlb, model)
     print('Loss V positive', np.mean(Loss_norm))
-    # print(V)
 
-    processResults(model.reactions, V, Vin, Pin, model.Pout, id,param, model.treatments)
+    processResults(model.reactions, V, Vin, Pin, model.Pout, id, param, model.treatments)
 
 def processResults(reactions, V, Vin, Pin, Pout, id, param, treatments=[]):
     import pandas
-    temp_df = pandas.DataFrame(data=V, columns=reactions)
-    temp_df.to_csv(f"{param.ml_result_folder}{id}_V_rxn.tsv", sep='\t')
     temp_df = pandas.DataFrame(data=V, columns=reactions, index=treatments)
-    temp_df.to_csv(f"{param.ml_result_folder}{id}_V_rxn_trmt.tsv", sep='\t')
+    temp_df.to_csv(f"{param.ml_folder}results/{id}_V_headers.tsv", sep='\t')
 
-    np.savetxt(f"{param.ml_result_folder}{id}_V.tsv", V, delimiter='\t')
-    np.savetxt(f"{param.ml_result_folder}{id}_X.tsv", Vin, delimiter='\t')
-    np.savetxt(f"{param.ml_result_folder}{id}_Pin.tsv", Pin, delimiter='\t')
-    np.savetxt(f"{param.ml_result_folder}{id}_Pout.tsv", Pout, delimiter='\t')
+    np.savetxt(f"{param.ml_folder}results/{id}_X.tsv", Vin, delimiter='\t')
+    np.savetxt(f"{param.ml_folder}results/{id}_Pin.tsv", Pin, delimiter='\t')
+    np.savetxt(f"{param.ml_folder}results/{id}_Pout.tsv", Pout, delimiter='\t')
 
-def run_simulation(param, epochs=2.5e6, learn_rate=1, decay_rate=.333, V0_init=-1, svp=15, hardConst=1, use_objective=False, biomass_max=100):
-    # What you can change
-    seed = 10
-    np.random.seed(seed=seed)
-
-    ## Model variables: 
-    spc = param.spc
-    day = param.time_stamp
-    tissue = param.other_colm_value
-    trainingfile = param.dataset_file
-    trainname = trainingfile.split('/')[-1]
-
-    loss_outfile=param.ml_result_folder+trainname+"_loss"
-    targets_outfile=param.ml_result_folder+trainname+"_targets"
-
+def run_simulation(param, epochs=2.5e6, learn_rate=1, decay_rate=.333, V0_init=-1, svp=15, hardConst=1, exchanges = None, use_objective=False, biomass_max=100):
+    
     # timestep = int(1.0e5) # LP 1.0e4 QP 1.0e5
     timestep = int(epochs) # 3.5e6
     learn_rate = learn_rate # LP 0.3 QP 1.0
     decay_rate = decay_rate # only in QP, UB 0.333 EB 0.9
-
-    # to set a constraint on the biomass reaction
-    ##  sets 'biomass_max' as the maximum value for biomass 
-    use_objective = False
-    objective = [use_objective, 'bio1_biomass'] #[] # ['bio1_biomass'] 
-
+    
     ## For experiment specific file names
     hardConst_dict = {0: "noRelu", 
                       1: "VposRelu", 
                       2: "VposVbfRelu"}
     V0_initVal = "startVbfandMean" if V0_init < 0 else "start"+str(V0_init)
 
-    id = f'{spc}_{tissue}_{day}_complexFix_plastid_{V0_initVal}_{hardConst_dict[hardConst]}_loopless'
+    id = f'{V0_initVal}_{hardConst_dict[hardConst]}'
 
     # End of What you can change
 
-
     start = time.time()
     # Create model and run GD for X and Y in trainingfile
-    model = Neural_Model(trainingfile = trainingfile,
-                  objective=objective,
-                  model_type = 'MM_QP',
-                  timestep = timestep,
-                  learn_rate = learn_rate,
-                  decay_rate = decay_rate,
-                  biomass_max = biomass_max,
-                  verbose=True)
+    model = Neural_Model(trainingfile = param.training_folder+'training',
+                         model_type = 'MM_QP',
+                         timestep = timestep,
+                         learn_rate = learn_rate,
+                         decay_rate = decay_rate,
+                         exchanges = exchanges,
+                         output_dir = param.ml_folder,
+                         verbose=True)
 
-    model.printout()
-    np.savetxt(f"{param.ml_result_folder}Y_{id}.csv", model.Y, delimiter=',')
-
-    # Prints a summary of the model before running
-    model.printout()
+    if not os.path.exists(f"{param.ml_folder}initialize"): os.makedirs(f"{param.ml_folder}initialize")
+    np.savetxt(f"{param.ml_folder}initialize/Y_{id}.tsv", model.Y, delimiter='\t')
 
     # Runs the appropriate method
+    if not os.path.exists(f"{param.ml_folder}finalize"): os.makedirs(f"{param.ml_folder}finalize")
+    loss_outfile=param.ml_folder+"finalize/loss"
+    targets_outfile=param.ml_folder+"finalize/targets"
+
+    # Make sure a 'checkpoints' folder exists
+    ckpt_dir = os.path.join(param.ml_folder, "checkpoints")
+    if not os.path.exists(ckpt_dir): os.makedirs(ckpt_dir)
+
     if model.model_type == 'MM_QP':
         Ypred, Stats = MM_QP(model, loss_outfile=loss_outfile, targets_outfile=targets_outfile, V0_init=V0_init, svp=svp, hardConst=hardConst, verbose=True)
 
     # Printing results
-    printout(Ypred, Stats, model,param,id)
+    if not os.path.exists(f"{param.ml_folder}results"): os.makedirs(f"{param.ml_folder}results")
+    printout(Ypred, Stats, model, param, id)
 
     end = time.time()
     timeD = end - start
