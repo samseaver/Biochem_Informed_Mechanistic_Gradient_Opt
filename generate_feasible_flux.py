@@ -4,6 +4,7 @@ warnings.simplefilter(action='ignore', category=Warning)
 import sys
 import os
 import copy
+from pathlib import Path
 
 sys.path.append('/scratch/seaver/Collaborations/Greenham_UMinn/ModelSEEDPy')
 sys.path.append('/scratch/seaver/Collaborations/Greenham_UMinn/cobrakbase')
@@ -36,21 +37,27 @@ if __name__ == '__main__':
 
 	vbf_parameters = Parameters_VBF()
 
+	# Check for output folder
+	Path(vbf_parameters.results_folder).mkdir(parents=True, exist_ok=True)
+
 	# generate COBRA model using cobrakbase
 	model = pdm.generateCobraModel(vbf_parameters.model_path, vbf_parameters.media_path)
+	print(f"Model generated with {len(model.reactions)} reactions")
 
 	# Find and remove inactive compartments.
 	# The duplication of the model means that an inactive compartment 
 	# with reversible reactions can exhibit a lot of loops
 	# so we remove the compartments entirely
 	model = pdm.find_remove_inactive_compartments(model)
-	
+	print(f"Inactive compartments removed from model, now has {len(model.reactions)} reactions")
+
 	# There are some dead-end transporters in the model which
 	# also do not have genes associated with them so their Vbf
 	# is set to a high default value but they are inherently blocked
 	# so we remove them to reduce the size of the solution
 	model = pdm.find_remove_blocked_transporters(model)
-
+	print(f"Blocked transporters removed from model, now has {len(model.reactions)} reactions")
+	
 	# Find and remove NGAM components from biomass reaction
 	# This is key because we are not optimizing biomass when we run
 	# our approach, and the presence of these components (which consume ATP)
@@ -135,6 +142,8 @@ if __name__ == '__main__':
 	with open(f'{vbf_parameters.results_folder}fva.tsv','w') as ofh:
 		ofh.write("reaction\tmax\n")
 		for rxn, result in fva_result.iterrows():
+
+			# skip reactions added by the flexible biomass package
 			if rxn in dup_model.reactions:
 				ofh.write(f"{rxn}\t{result['maximum']:.6f}\n")
 
