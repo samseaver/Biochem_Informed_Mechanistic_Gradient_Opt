@@ -26,7 +26,8 @@ def determine_ceiling_threshold(df, col='max'):
     common_artifact_value = top_half['rounded'].mode()[0]
     return common_artifact_value * 0.99
 
-def load_fluxes(fluxes_file, scores_df, verbose=False):
+def load_fluxes(parameters, scores_df, verbose=False):
+    fluxes_file = f"{parameters.results_folder}fva.tsv"
     print("Loading fluxes from "+fluxes_file)
 
     fva_df = pa.read_csv(fluxes_file, sep='\t')
@@ -96,7 +97,7 @@ def load_fluxes(fluxes_file, scores_df, verbose=False):
     
     # Map the scores, but DO NOT use fillna(0) yet! Leave missing scores as NaN.
     # Collapse the 57 conditions into a single maximum active score per enzyme
-    unique_score_map = scores_df.groupby('base_id')['reaction_score'].max()
+    unique_score_map = scores_df.groupby('base_id')[parameters.value_col].max()
     fva_df['active_score'] = fva_df['base_id'].map(unique_score_map)
     
     # Identify Irreversible Reactions that are blocked AND ACTIVE
@@ -198,17 +199,16 @@ def generate_kapp_vbf(parameters, verbose=False):
     scores_df, control_df = load_scores(parameters, verbose=verbose)
     
     scores_df.rename(columns={'rxn_ID': 'base_id'}, inplace=True)
-    scores_df.rename(columns={'mean_value': 'reaction_score'}, inplace=True)
+    scores_df.rename(columns={'mean_value': parameters.value_col}, inplace=True)
     scores_df = scores_df[scores_df['base_id'].str.contains(r'rxn\d{5}', regex=True)]
 
     control_df.rename(columns={'rxn_ID': 'base_id'}, inplace=True)
-    control_df.rename(columns={'reaction_score': 'average_rs'}, inplace=True)
+    control_df.rename(columns={parameters.value_col: 'average_rs'}, inplace=True)
     control_df = control_df[control_df['base_id'].str.contains(r'rxn\d{5}', regex=True)]
 
     # Fluxes for duplicated model
     # reaction scores are used for imputation of fluxes in active enzymes
-    fluxes_file = f"{parameters.results_folder}fva.tsv"
-    fva_df = load_fluxes(fluxes_file, scores_df)
+    fva_df = load_fluxes(parameters, scores_df)
     
     if verbose:
         print("Control DF: \n", control_df.head())
@@ -246,10 +246,10 @@ def generate_kapp_vbf(parameters, verbose=False):
 
     kapp_df = kapp_df[['rxn_ID', 'base_id', 'max', 'kapp', 'average_rs']].drop_duplicates()
     vbf_df = pa.merge(kapp_df, scores_df, on='base_id', how='inner',indicator=True)
-    vbf_df['vbf'] = vbf_df['kapp'] * vbf_df['reaction_score']
+    vbf_df['vbf'] = vbf_df['kapp'] * vbf_df[parameters.value_col]
     
     # pivot the dataframe to create a column for each treatment
-    vbf_df = vbf_df.rename(columns={'reaction_score': 'rs'})
+    vbf_df = vbf_df.rename(columns={parameters.value_col: 'rs'})
     ind = ['rxn_ID', 'max', 'average_rs', 'kapp']
     col = [parameters.trmt_column]
     val = ['rs', 'vbf']

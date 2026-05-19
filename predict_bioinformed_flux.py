@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 import warnings
 warnings.simplefilter(action='ignore', category=Warning)
 
@@ -81,7 +82,7 @@ if __name__ == '__main__':
 	exchange_list = [r.id for r in dup_model.exchanges if "EX" in r.id]
 	with open(ml_parameters.media_file+'.csv','w') as fh:
 		print("writing exchanges to training media")
-		fh.write(f"name,{",".join(exchange_list)}\n")
+		fh.write(f"name,{','.join(exchange_list)}\n")
 		fh.write(f"level{',2'*len(exchange_list)}\n")
 		fh.write(f"max_value{',1000'*len(exchange_list)}\n")
 		fh.write(f"ratio_drawing{','*len(exchange_list)}\n")
@@ -125,7 +126,7 @@ if __name__ == '__main__':
     # training_set.printout()
 
 	###----- Run ML simulation
-	epochs=100000
+	epochs=1e6
 	learn_rate=1    # 
 	decay_rate=.333 # 
 

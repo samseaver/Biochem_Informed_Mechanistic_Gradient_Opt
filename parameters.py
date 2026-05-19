@@ -1,17 +1,35 @@
+#!/usr/bin/env python
 from pathlib import Path
 import os
 import sys
 
-from pathlib import Path
 project_root = str(Path(__file__).resolve()).split('src')[0]
 sys.path.append(project_root)
 
-# Sets project specif information for automatic processing of transcriptome
+# --- Global Species Configuration ---
+# Toggle the active species here to automatically synchronize all downstream VBF and ML paths
+ACTIVE_SPECIES = "Poplar"  # Options: "Poplar" or "Sorghum"
+
+if ACTIVE_SPECIES == "Poplar":
+    GLOBAL_SPC = "Poplar"
+    GLOBAL_PROJECT_FOLDER = "projects/qpsi-260406-plastid-poplar/"
+    GLOBAL_BASE_MODEL = "plastidial-Ptrichocarpa-v4.1-reconstruction_fixed"
+elif ACTIVE_SPECIES == "Sorghum":
+    GLOBAL_SPC = "Sorghum"
+    GLOBAL_PROJECT_FOLDER = "projects/qpsi-260406-plastid-sorghum/"
+    GLOBAL_BASE_MODEL = "Sbicolor-v3.1.1-plastidial-reconstruction"
+else:
+    raise ValueError("Unsupported species selected. Please choose 'Poplar' or 'Sorghum'.")
+# ------------------------------------
+
+
+# Sets project specific information for automatic processing of transcriptome
 class Parameters_VBF: 
     def __init__(self):
-        self.spc = "Sorghum"
-        self.project_folder = "projects/qpsi-sorghum-260206/"
-        self.model_name = "Sbicolor-v5.1-reconstruction_fixed"
+        self.spc = GLOBAL_SPC
+        self.project_folder = GLOBAL_PROJECT_FOLDER
+        self.model_name = GLOBAL_BASE_MODEL
+
         self.model_path = f"{self.project_folder}inputs/{self.model_name}.json"
 
         self.medium = "PlantAutotrophicMedia"
@@ -19,52 +37,33 @@ class Parameters_VBF:
         self.media_path = f"{self.media_file}.json"
 
         self.results_folder = f"{self.project_folder}integration_results/"
-        self.scores_folder = f"/Users/seaver/Seaver_Lab/Git_Repos/RNASeq_Enzyme_Abundance/projects/qpsi/integration_results/"
-        self.scores_file = os.path.join(self.scores_folder, f"{self.spc}_objective_abundance.tsv")
+        self.scores_folder = "/Users/seaver/Seaver_Lab/Git_Repos/RNASeq_Enzyme_Abundance/projects/qpsi-plastidial/integration_results/"
+        self.scores_file = os.path.join(self.scores_folder, f"{self.spc}_rxn_molar_fractions.tsv_2")
 
         self.ctrl_trmt = 'Control'
         self.time_stamp = 'all'
         
-        self.value_col = 'reaction_score'
+        # self.value_col = 'molar_fraction'
+        self.value_col = 'relative_reaction_score'
         self.trmt_column = 'condition'
-
-        self.useRelab=False
-
-class Parameters_ML: 
-    def __init__(self): 
-        self.spc = "TSU"
-        self.fName = 'Athaliana'
-        self.mDate = '070224'
-        self.error = False
-        self.time_points = ["1", "5", "9", "13", "17", "21"]
-        self.expFolder = "projects/cold-response/"
-        self.projectFolder = "projects/cold-response-tsu-251206/"
-
-        self.results_folder = f"{self.projectFolder}integration-results/"
-        self.cobraname = "athaliana-model-251206"
-        self.model_path = f"{self.projectFolder}inputs/{self.cobraname}.json"
-        
-        self.mediumname = "PlantAutotrophicMedia"
-        self.media_path = f"{self.projectFolder}inputs/{self.mediumname}.json"
-        self.mediaFile  = f"{self.projectFolder}inputs/{self.mediumname}"
-
-        self.ctrl_trmt = 'CTL'
-        self.scores_file = os.path.join(self.results_folder, f"{self.spc}_objective_abundance_{self.ctrl_trmt}.tsv")
-        self.time_stamp = 'all' # 'ZT9'
-        self.other_colm = 'genotype'
-        self.value_col = 'mean_value'
-        self.trmt_column = 'treatment'
-        self.other_colm_value = 'TSU' # 'TSU', 'C24'
-        self.treatments = ['CTL', 'FRZ']
 
         self.useRelab = False
 
-        if self.time_stamp == 'all':
-            self.treatments = [trmt+"_"+tp for trmt in self.treatments for tp in self.time_points]
+class Parameters_ML: 
+    def __init__(self):
+        self.spc = GLOBAL_SPC
+        self.project_folder = GLOBAL_PROJECT_FOLDER
         
-        self.Vbfname = f"vbf-{self.other_colm}-{self.time_stamp}.tsv"
-        self.VbfFile = os.path.join(self.results_folder, self.Vbfname)
+        # ML models utilize the duplicated reaction format
+        self.model_name = f"{GLOBAL_BASE_MODEL}_dup"
         
-        self.dataset_file = os.path.join(self.projectFolder, 'model', f"{self.spc}_{str(len(self.treatments))}_{self.other_colm}_{self.time_stamp}_complexFix_loopless")
+        self.model_path = f"{self.project_folder}inputs/{self.model_name}.xml"
 
-        self.ml_result_folder = f"{self.projectFolder}ml_results/"
+        self.medium = "PlantAutotrophicMedia"
+        self.media_file  = f"{self.project_folder}inputs/{self.medium}"
+
+        self.integration_folder = f"{self.project_folder}integration_results/"
+        self.vbf_file = f"{self.integration_folder}vbf.tsv"
+
+        self.ml_folder = f"{self.project_folder}ml/"
+        self.training_folder = f"{self.ml_folder}training/"
