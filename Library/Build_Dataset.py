@@ -534,9 +534,9 @@ class TrainingSet:
         # Read V_bf dataframe
         self.Vbf_df = pandas.read_csv(vbf_name, sep='\t')
         if restrictedFittingList:
-            self.Vbf_df = self.Vbf_df[self.Vbf_df['rxn_ID'].isin(restrictedFittingList)]
+            self.Vbf_df = self.Vbf_df[self.Vbf_df['reaction_id'].isin(restrictedFittingList)]
 
-        self.Vbf_df = self.Vbf_df.set_index('rxn_ID')
+        self.Vbf_df = self.Vbf_df.set_index('reaction_id')
 
         if self.method.lower() == 'vbf':
             print("Vbf method selected")

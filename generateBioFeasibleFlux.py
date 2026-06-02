@@ -153,7 +153,7 @@ def load_fluxes(parameters, scores_df, verbose=False):
     fva_df.drop(columns=['base_rxn_cpt_id', 'base_rxn_direction'], inplace=True)
 
     if verbose: print(fva_df.head())
-    fva_df.rename(columns={'reaction':'rxn_ID'}, inplace=True)
+    fva_df.rename(columns={'reaction':'reaction_id'}, inplace=True)
 
     return fva_df
 
@@ -181,13 +181,13 @@ def load_scores(parameters, verbose=False):
         sys.exit(1)
 
     # drop all columns except score and reaction IDs
-    control = control[[parameters.value_col, 'rxn_ID']]
-    control = control.groupby('rxn_ID').mean()
+    control = control[[parameters.value_col, 'reaction_id']]
+    control = control.groupby('reaction_id').mean()
     control = control.reset_index()
     if verbose: print(control.head())
     
     # Keep only important columns
-    scores_df = scores_df[[parameters.value_col, parameters.trmt_column, 'rxn_ID']]
+    scores_df = scores_df[[parameters.value_col, parameters.trmt_column, 'reaction_id']]
     if verbose:
         print(scores_df.head())
         print(control.head())
@@ -198,11 +198,11 @@ def generate_kapp_vbf(parameters, verbose=False):
     # Reaction score for non-duplicated model
     scores_df, control_df = load_scores(parameters, verbose=verbose)
     
-    scores_df.rename(columns={'rxn_ID': 'base_id'}, inplace=True)
+    scores_df.rename(columns={'reaction_id': 'base_id'}, inplace=True)
     scores_df.rename(columns={'mean_value': parameters.value_col}, inplace=True)
     scores_df = scores_df[scores_df['base_id'].str.contains(r'rxn\d{5}', regex=True)]
 
-    control_df.rename(columns={'rxn_ID': 'base_id'}, inplace=True)
+    control_df.rename(columns={'reaction_id': 'base_id'}, inplace=True)
     control_df.rename(columns={parameters.value_col: 'average_rs'}, inplace=True)
     control_df = control_df[control_df['base_id'].str.contains(r'rxn\d{5}', regex=True)]
 
@@ -230,7 +230,7 @@ def generate_kapp_vbf(parameters, verbose=False):
     print(f"Found {len(inf_rows)} rows where Kapp is Infinite (Max > 0, Avg_RS = 0).")
     if not inf_rows.empty:
         print("Sample rows with Infinite Kapp:")
-        print(inf_rows[['rxn_ID', 'max', 'average_rs', 'kapp']].head(10))
+        print(inf_rows[['reaction_id', 'max', 'average_rs', 'kapp']].head(10))
 
         # force Kapp to 0.0 where it is currently np.inf 
         # Logic: "If not expressed in control, Kapp is 0."
@@ -244,13 +244,13 @@ def generate_kapp_vbf(parameters, verbose=False):
     if verbose:
         print(kapp_df['kapp'].describe())
 
-    kapp_df = kapp_df[['rxn_ID', 'base_id', 'max', 'kapp', 'average_rs']].drop_duplicates()
+    kapp_df = kapp_df[['reaction_id', 'base_id', 'max', 'kapp', 'average_rs']].drop_duplicates()
     vbf_df = pa.merge(kapp_df, scores_df, on='base_id', how='inner',indicator=True)
     vbf_df['vbf'] = vbf_df['kapp'] * vbf_df[parameters.value_col]
     
     # pivot the dataframe to create a column for each treatment
     vbf_df = vbf_df.rename(columns={parameters.value_col: 'rs'})
-    ind = ['rxn_ID', 'max', 'average_rs', 'kapp']
+    ind = ['reaction_id', 'max', 'average_rs', 'kapp']
     col = [parameters.trmt_column]
     val = ['rs', 'vbf']
     vbf_df = vbf_df.pivot(index=ind, columns=col, values=val)

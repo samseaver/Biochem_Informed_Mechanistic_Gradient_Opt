@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 import warnings
 warnings.simplefilter(action='ignore', category=Warning)
 

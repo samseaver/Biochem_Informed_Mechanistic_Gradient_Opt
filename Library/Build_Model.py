@@ -1173,11 +1173,11 @@ def Gradient_Descent(V, Vin, Vout, Vlb, parameter, mask, trainable=True, history
         else:
             patience_counter += 1 # Increment if the improvement was too small
             
-        if patience_counter >= patience_limit:
-            print(f"\n--- EARLY STOPPING ---")
-            print(f"Triggered at Step {t}. The solver plateaued.")
-            print(f"Saved massive compute time by skipping the remaining {parameter.timestep - t} steps!\n")
-            break
+        # if patience_counter >= patience_limit:
+        #     print(f"\n--- EARLY STOPPING ---")
+        #     print(f"Triggered at Step {t}. The solver plateaued.")
+        #     print(f"Saved massive compute time by skipping the remaining {parameter.timestep - t} steps!\n")
+            # break
         # ---------------------------------
 
     return pre_relu_V, Loss_mean_history, Loss_std_history, Loss_Data_history, Loss_Mass_history, Dead_history, StdDev_history

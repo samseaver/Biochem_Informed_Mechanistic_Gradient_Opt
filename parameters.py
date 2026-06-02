@@ -8,7 +8,7 @@ sys.path.append(project_root)
 
 # --- Global Species Configuration ---
 # Toggle the active species here to automatically synchronize all downstream VBF and ML paths
-ACTIVE_SPECIES = "Poplar"  # Options: "Poplar" or "Sorghum"
+ACTIVE_SPECIES = "Sorghum"  # Options: "Poplar" or "Sorghum"
 
 if ACTIVE_SPECIES == "Poplar":
     GLOBAL_SPC = "Poplar"
@@ -38,12 +38,11 @@ class Parameters_VBF:
 
         self.results_folder = f"{self.project_folder}integration_results/"
         self.scores_folder = "/Users/seaver/Seaver_Lab/Git_Repos/RNASeq_Enzyme_Abundance/projects/qpsi-plastidial/integration_results/"
-        self.scores_file = os.path.join(self.scores_folder, f"{self.spc}_rxn_molar_fractions.tsv_2")
+        self.scores_file = os.path.join(self.scores_folder, f"{self.spc}_reaction_molar_fractions.tsv")
 
         self.ctrl_trmt = 'Control'
         self.time_stamp = 'all'
         
-        # self.value_col = 'molar_fraction'
         self.value_col = 'relative_reaction_score'
         self.trmt_column = 'condition'
 
