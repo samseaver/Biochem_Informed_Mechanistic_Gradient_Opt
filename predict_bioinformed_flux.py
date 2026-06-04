@@ -127,8 +127,8 @@ if __name__ == '__main__':
 
 	###----- Run ML simulation
 	epochs=1e6
-	learn_rate=1    # 
-	decay_rate=.333 # 
+	learn_rate=5e-2
+	decay_rate=.333
 
 	# initial flux for the simulation 
 	# -1: set Exchange reactions to 1000, Vbf for all reaction with a value or Vbf_mean 
@@ -138,7 +138,7 @@ if __name__ == '__main__':
 	V0_init=-1
 
 	# penalty on the steady state constraint
-	svp=15
+	svp=0.01
 
 	# Which hard constraint to set for modeling 
 	# 0: for none
@@ -172,7 +172,6 @@ if __name__ == '__main__':
 		print(f"Warning: FVA file not found! Defaulting to standard initialization.")
 	# ======================================================================
 
-
 	# Now we pass it down the chain!
 	bmw.run_simulation(
 	    ml_parameters, 
@@ -184,25 +183,3 @@ if __name__ == '__main__':
 	    hardConst=hardConst,
 	    exchanges = exchange_fluxes
 	)
-
-	# When you call MM_QP(model, ...) from your wrapper, the following chain of functions is executed:
-	# MM_QP (Line 1389)
-	# This is the entry point. It simply acts as a shortcut.
-	# Calls: run_MM_QP
-	# Prepares the data. It copies the parameter object to avoid overwriting the original.
-	# Calls: input_AMN (Line 1367) to format the input matrix X and add dummy columns for constraints.
-	# Calls: QP_layers (Line 1373) to perform the actual optimization.
-	# QP_layers (Line 1125)
-	# This function orchestrates the initialization and the gradient descent loop.
-	# Calls: get_V0 (Line 1134) to calculate the initial flux vector. (This is where your print statement is).
-	# Calls: Gradient_Descent (Line 1143) to run the optimization loop.
-	# Calls: output_AMN (Line 1144) to format the final output vector.
-	# Gradient_Descent (Line 1018)
-	# This is the "engine" of the simulation. It loops epochs times.
-	# Calls: Loss_all (Line 1032) inside the loop to calculate the loss and gradients.
-	# Loss_all calls Loss_Vout_constraint, Loss_SV, Loss_Pin, and Loss_Vpos.
-	# Updates: The flux vector V using the calculated gradient dL.
-	# Calls: custom_ReLU (Line 1039) if hardConst=2.
-	# Return Path:
-	# QP_layers returns the outputs (the full state vector) and loss stats.
-	# run_MM_QP takes those outputs, slices them to get just the fluxes (Vf), calculates R2 scores, writes the loss/target CSV files, and returns the final flux matrix Vf and the Stats object.

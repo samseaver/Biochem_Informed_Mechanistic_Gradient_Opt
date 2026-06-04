@@ -8,7 +8,7 @@ sys.path.append(project_root)
 
 # --- Global Species Configuration ---
 # Toggle the active species here to automatically synchronize all downstream VBF and ML paths
-ACTIVE_SPECIES = "Sorghum"  # Options: "Poplar" or "Sorghum"
+ACTIVE_SPECIES = "Poplar"  # Options: "Poplar" or "Sorghum"
 
 if ACTIVE_SPECIES == "Poplar":
     GLOBAL_SPC = "Poplar"
