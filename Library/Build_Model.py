@@ -611,188 +611,106 @@ def Loss_Vout_obj_constraint(V, parameter=None, gradient=False):
     return Loss_norm, dLoss
 
 def Loss_Vout_constraint(V, Pout, Vout, gradient=False):
-    # Loss for the objective (acts like a boundary constraint)
-    # Loss = ReLU(Pout . V - Vout)
-    # When Vout is empty just compute Pout.V
-    # dLoss = ∂(ReLU(Pout . V - Vout)^2/∂V
-    # print("in Loss_Vout: ", V.shape, Pout.shape, Vout.shape)
     if not tf.is_tensor(Pout):
         Pout = tf.convert_to_tensor(np.float32(Pout))
     Loss = tf.linalg.matmul(V, tf.transpose(Pout), b_is_sparse=True) - Vout
     Loss = tf.keras.activations.relu(Loss)
-    # print(Loss.shape)
-    Loss_norm = tf.norm(Loss, axis=1, keepdims=True)/Pout.shape[0] # rescaled
+    
+    Loss_norm = tf.math.square(tf.norm(Loss, axis=1, keepdims=True)) / Pout.shape[0] 
+    
     if gradient:
-        # dLoss = tf.linalg.matmul(Loss, Pout, b_is_sparse=True) # derivate
-        # dLoss = dLoss / (Pout.shape[0] * Pout.shape[0])  # rescaling
-        dLoss = tf.math.divide_no_nan(Loss, Loss) # derivate: Hadamard div.
-        dLoss = tf.math.multiply(Loss, dLoss) # !!!
-        dLoss = tf.linalg.matmul(dLoss, Pout, b_is_sparse=True) # resizing
-        dLoss = dLoss / (Pout.shape[0] * Pout.shape[0])   # rescaling
-        # dLoss = 2 * dLoss
+        dLoss = tf.math.divide_no_nan(Loss, Loss) 
+        dLoss = tf.math.multiply(Loss, dLoss) 
+        dLoss = tf.linalg.matmul(dLoss, Pout, b_is_sparse=True) 
+        dLoss = (dLoss * 2.0) / Pout.shape[0]  
     else:
         dLoss =  0 * V
 
     return Loss_norm, dLoss
 
-def Loss_Capacity_constraint(V, parameter, gradient=False):
-    # Loss for the total enzyme capacity: V_f + V_r <= Vbf
-    M_enz = parameter.M_enz_tf
-    Vout_enz = parameter.Vout_enz_tf
-    Pout_enz = parameter.Pout_enz_tf
-
-    # Total flux through enzyme: V_total = V @ M_enz
-    V_total = tf.linalg.matmul(V, M_enz)
-    
-    # Excess flux: ReLU(V_total - Vout_enz)
-    Loss = tf.keras.activations.relu(V_total - Vout_enz)
-    
-    # Apply enforcement mask
-    Loss = tf.math.multiply(Loss, Pout_enz)
-
-    # Norm
-    Loss_norm = tf.norm(Loss, axis=1, keepdims=True) / tf.constant(float(Pout_enz.shape[1]), dtype=tf.float32)
-    
-    if gradient:
-        dLoss = tf.math.divide_no_nan(Loss, Loss) # sign/mask
-        dLoss = tf.math.multiply(Loss, dLoss) 
-        # Chain rule: back through M_enz to route gradients correctly to _f and _r
-        dLoss = tf.linalg.matmul(dLoss, M_enz, transpose_b=True)
-        dLoss = dLoss / (float(Pout_enz.shape[1]) * float(Pout_enz.shape[1]))
-    else:
-        dLoss = 0 * V
-
-    return Loss_norm, dLoss
-
 def Loss_Vin(V, Pin, Vin, bound='UB', gradient=False):
-    # Gradient for input boundary constraint
-    # Loss = ReLU(Pin . V - Vin)
-    # dLoss = ∂(ReLU(Pin . V - Vin)^2/∂V
-    # Input: Cf. Gradient_Descent
     if not tf.is_tensor(Pin):
         Pin  = tf.convert_to_tensor(np.float32(Pin))
 
     Loss = tf.linalg.matmul(V, tf.transpose(Pin), b_is_sparse=True) - Vin
-    # tf.cast(tf.multiply(Vin, parameter.scaler), tf.float32)
     Loss = tf.keras.activations.relu(Loss) if bound == 'UB' else Loss
-    Loss_norm = tf.norm(Loss, axis=1, keepdims=True)/Pin.shape[0] # rescaled
+    
+    Loss_norm = tf.math.square(tf.norm(Loss, axis=1, keepdims=True)) / Pin.shape[0] 
+    
     if gradient:
-        dLoss = tf.math.divide_no_nan(Loss, Loss) # derivate: Hadamard div.
-        dLoss = tf.math.multiply(Loss, dLoss) # !!!
-        dLoss = tf.linalg.matmul(dLoss, Pin, b_is_sparse=True) # resizing
-        dLoss = ( dLoss * 2.0 ) / (Pin.shape[0] * Pin.shape[0])   # rescaling
+        dLoss = tf.math.divide_no_nan(Loss, Loss) 
+        dLoss = tf.math.multiply(Loss, dLoss) 
+        dLoss = tf.linalg.matmul(dLoss, Pin, b_is_sparse=True)
+        dLoss = (dLoss * 2.0) / Pin.shape[0]   
     else:
         dLoss =  0 * V
     return Loss_norm, dLoss
 
 def Loss_SV(V, S, gradient=False, save=False):
-    # Gradient for SV constraint
-    # Loss = ||SV||
-    # dLoss =  ∂([SV]^2)/∂V = S^T SV
     if not tf.is_tensor(S):
         S  = tf.convert_to_tensor(np.float32(S))
     Loss = tf.linalg.matmul(V, tf.transpose(S), b_is_sparse=True)
-    Loss_norm = tf.norm(Loss, axis=1, keepdims=True)/S.shape[0] # rescaled
+    
+    Loss_norm = tf.math.square(tf.norm(Loss, axis=1, keepdims=True)) / S.shape[0] 
     
     if save:
         np.savetxt("sv_loss.csv", Loss, delimiter=',')
         np.savetxt("sv_lossNorm.csv", Loss_norm, delimiter=',')
 
     if gradient:
-        dLoss = tf.linalg.matmul(Loss, S, b_is_sparse=True) # derivate
-        dLoss = dLoss / (S.shape[0]*S.shape[0])  # rescaling
-        dLoss = dLoss * 2.0
+        dLoss = tf.linalg.matmul(Loss, S, b_is_sparse=True)
+        dLoss = (dLoss * 2.0) / S.shape[0]  
     else:
         dLoss =  0 * V
     return Loss_norm, dLoss
 
 def Loss_Vpos(V, Vlb, gradient=False):
-    # Gradient for V ≥ 0 constraint
-    # Loss = ReLU(-V)
-    # dLoss = ∂(ReLU(-V)^2/∂V
-    # print(Vlb.shape)
     if (Vlb is not None) and (Vlb.shape[0] is not None) and (Vlb.shape[0] >= 1) \
             and (Vlb.shape[1] == V.shape[1]):
-        # print("lower bound loss")
         Loss = tf.keras.activations.relu(Vlb - V)
     else:
         Loss = tf.keras.activations.relu(-V)
 
-    Loss_norm = tf.norm(Loss, axis=1, keepdims=True)/V.shape[1] # rescaled
+    Loss_norm = tf.math.square(tf.norm(Loss, axis=1, keepdims=True)) / V.shape[1] 
+    
     if gradient:
-        dLoss = - tf.math.divide_no_nan(Loss, Loss) # derivate: Hadamard div.
-        dLoss = tf.math.multiply(Loss, dLoss) # !!!
-        dLoss = ( dLoss *2.0 ) / (V.shape[1] * V.shape[1]) # rescaling
+        dLoss = - tf.math.divide_no_nan(Loss, Loss) 
+        dLoss = tf.math.multiply(Loss, dLoss) 
+        dLoss = (dLoss * 2.0) / V.shape[1] 
     else:
         dLoss =  0 * V
     return Loss_norm, dLoss
 
 def Loss_constraint(V, Vin, Vlb, parameter, gradient=False):
-    # mean squared sum L2+L3+L4
     L2, dL2 = Loss_SV(V, parameter.S, gradient=gradient)
-    L3, dL3 = Loss_Vin(V, parameter.Pin, Vin,
-                       parameter.mediumbound, gradient=gradient)
+    L3, dL3 = Loss_Vin(V, parameter.Pin, Vin, parameter.mediumbound, gradient=gradient)
     L4, dL4 = Loss_Vpos(V, Vlb, gradient=gradient)
-    # square sum of L2, L3, L4
-    L2 = tf.math.square(L2)
-    L3 = tf.math.square(L3)
-    L4 = tf.math.square(L4)
+    
+    # Sum of L2, L3, L4
     L = tf.math.reduce_sum(tf.concat([L2, L3, L4], axis=1), axis=1)
+    
     # divide by 3
     L = tf.math.divide_no_nan(L, tf.constant(3.0, dtype=tf.float32))
-    return L, dL2+dL3+dL4
+    return L, dL2 + dL3 + dL4
 
 def Loss_all(V, Vin, Vout, Vlb, parameter, gradient=False, wt=False, p_sv=1, save=False):
-    # mean square sum of L1, L2, L3, L4, L5
-    if (Vout is None) or ((Vout.shape[0] is not None) and (Vout.shape[0] < 1)): # No target provided = no Loss_Vout
+    if (Vout is None) or ((Vout.shape[0] is not None) and (Vout.shape[0] < 1)): 
         L, dL = Loss_constraint(V, Vin, Vlb, parameter, gradient=gradient)
         return L, dL
     
-    # L1, dL1 = Loss_Vout(V, parameter.Pout, Vout, gradient=gradient)
     L1, dL1 = Loss_Vout_constraint(V, parameter.Pout, Vout, gradient=gradient)
 
-    # --- NET CAPACITY FIX ---
-    # Too soft so we tried proportional clamp
-    # p_data = 10.0  # Weight for biological penalty
-    
-    # if hasattr(parameter, 'M_enz_tf') and parameter.M_enz_tf is not None:
-    #     L1, dL1 = Loss_Capacity_constraint(V, parameter, gradient=gradient)
-    # else:
-    #     L1, dL1 = Loss_Vout_constraint(V, parameter.Pout, Vout, gradient=gradient)
-        
-    # Scale the loss and its gradient (dL is the gradient of the *squared* loss)
-    # L1 = L1 * p_data
-    # dL1 = dL1 * (p_data ** 2)
-    # ------------------------
-
     L2, dL2 = Loss_SV(V, parameter.S, gradient=gradient, save=save)
-    # print("L2, dL2: ", L2, dL2)
-    # apply penalty
+    # Apply penalty
     dL2 = dL2 * p_sv
     L2 = L2 * p_sv
 
-    L3, dL3 = Loss_Vin(V, parameter.Pin, Vin,
-                       parameter.mediumbound, gradient=gradient)
-    # print("L3, dL3: ", L3, dL3)
+    L3, dL3 = Loss_Vin(V, parameter.Pin, Vin, parameter.mediumbound, gradient=gradient)
     L4, dL4 = Loss_Vpos(V, Vlb, gradient=gradient)
-    # dL4 = dL4 * p_sv
-    # L4 = L4 * p_sv
-    # L2 = tf.multiply(L2, 10.0)
-    # print("L4, dL4: ", L4, dL4)
-    # L5, dL5 = Loss_Vout_obj(V, parameter=parameter, gradient=gradient)
-    # # print("L5, dL5: ", L5, dL5)
-
-    # print(abc)
-
-    # square sum of L1, L2, L3, L4, L5
-    L1 = tf.math.square(L1)
-    L2 = tf.math.square(L2)
-    L3 = tf.math.square(L3)
-    L4 = tf.math.square(L4)
 
     if hasattr(parameter, 'objective') and parameter.objective and parameter.objPout is not None:
         L5, dL5 = Loss_Vout_obj(V, parameter=parameter, gradient=gradient)
-        L5 = tf.math.square(L5)
+        L5 = tf.math.square(L5) # Assuming obj loss wasn't rewritten, keep its square
         
         L = tf.math.reduce_sum(tf.concat([L1, L2, L3, L4, L5], axis=1), axis=1)
         num_const = 5.0
@@ -801,7 +719,6 @@ def Loss_all(V, Vin, Vout, Vlb, parameter, gradient=False, wt=False, p_sv=1, sav
         L = tf.math.reduce_sum(tf.concat([L1, L2, L3, L4], axis=1), axis=1)
         num_const = 4.0
         dL = dL1 + dL2 + dL3 + dL4
-    # ---------------------------------------
 
     L = tf.math.divide_no_nan(L, tf.constant(num_const, dtype=tf.float32))
     
