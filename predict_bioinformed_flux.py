@@ -72,7 +72,11 @@ if __name__ == '__main__':
 
     # List comprehension to find and clean the names
     # requires Python 3.9+ for .removeprefix()
-	treatments = [col.removeprefix('vbf_') for col in vbf_df.columns if col.startswith('vbf_')]
+	treatments = [col.removeprefix('vbf_') for col in vbf_df.columns
+	              if col.startswith('vbf_')
+	              and (not TREATMENT_FILTERS or any(k in col for k in TREATMENT_FILTERS))]
+	if TREATMENT_FILTERS:
+		print(f"Applying TREATMENT_FILTERS={TREATMENT_FILTERS!r}")
 	print(f"Found {len(treatments)} treatments:",treatments[:5])
 
 	# Build detaset for the ML pipeline: 

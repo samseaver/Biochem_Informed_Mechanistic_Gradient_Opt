@@ -899,11 +899,14 @@ def Gradient_Descent(V, Vin, Vout, Vlb, parameter, mask, trainable=True, history
     prev_V_val = None                    
     diff = 0 * V
 
-    # --- EARLY STOPPING SETUP ---
-    best_loss = float('inf')
-    patience_counter = 0
-    patience_limit = 500  # How many steps to wait before giving up
-    min_delta = 1e-2      # Minimum relative improvement
+    # --- EARLY STOPPING SETUP (per-condition) ---
+    n_cond = int(V.shape[0])
+    best_loss_vec  = np.full(n_cond, np.inf)
+    patience_vec   = np.zeros(n_cond, dtype=int)
+    frozen         = np.zeros(n_cond, dtype=bool)
+    frozen_at_step = np.full(n_cond, -1, dtype=int)
+    patience_limit = 500   # iterations of <min_delta improvement before a condition is frozen
+    min_delta      = 1e-2  # required relative improvement per iteration to reset patience
     # ---------------------------------
 
     # for saving checkpoint files
@@ -958,6 +961,11 @@ def Gradient_Descent(V, Vin, Vout, Vlb, parameter, mask, trainable=True, history
             # Fallback: Apply to all fluxes (standard pFBA) if masks are missing
             dL = dL + lambda_l1
         # -------------------------------------------------
+
+        # Zero gradient rows for plateaued conditions so their V stops moving
+        if frozen.any():
+            freeze_mask = tf.constant((1.0 - frozen.astype(np.float32)).reshape(-1, 1))
+            dL = dL * freeze_mask
 
         dL = tf.math.multiply(dL, mask) # Apply mask on dL
 
@@ -1078,23 +1086,25 @@ def Gradient_Descent(V, Vin, Vout, Vlb, parameter, mask, trainable=True, history
                 save = True
                 print('QP-Loss', t, Loss_mean, Loss_std)
 
-        # --- EARLY STOPPING CHECK ---
-        # We use the max of the total loss tensor L (calculated at the top of the loop)
-        # Stops only when the highest single-condition loss plateaus
-        current_loss = tf.reduce_max(L).numpy()
-        
-        # Calculate relative improvement: (best - current) / best
-        if best_loss == float('inf') or (best_loss - current_loss) / best_loss > min_delta:
-            best_loss = current_loss
-            patience_counter = 0  # Reset patience if we made good progress
-        else:
-            patience_counter += 1 # Increment if the improvement was too small
-            
-        # if patience_counter >= patience_limit:
-        #     print(f"\n--- EARLY STOPPING ---")
-        #     print(f"Triggered at Step {t}. The solver plateaued.")
-        #     print(f"Saved massive compute time by skipping the remaining {parameter.timestep - t} steps!\n")
-            # break
+        # --- EARLY STOPPING CHECK (per-condition) ---
+        cur = L.numpy().flatten()
+        denom = np.where(np.isfinite(best_loss_vec), best_loss_vec, 1.0)
+        improved = np.isinf(best_loss_vec) | (((best_loss_vec - cur) / denom) > min_delta)
+        best_loss_vec = np.where(improved, np.minimum(best_loss_vec, cur), best_loss_vec)
+        patience_vec  = np.where(improved, 0, patience_vec + 1)
+        newly = (patience_vec >= patience_limit) & ~frozen
+        if newly.any():
+            newly_idx = np.where(newly)[0].tolist()
+            print(f"Step {t}: freezing conditions {newly_idx} "
+                  f"(losses {[float(cur[i]) for i in newly_idx]})")
+            frozen_at_step[newly] = t
+            frozen |= newly
+        if frozen.all():
+            print(f"All {n_cond} conditions plateaued at step {t}; exiting GD loop.")
+            np.savetxt(os.path.join(ckpt_dir, "frozen_at_step.tsv"),
+                       frozen_at_step, fmt='%d', delimiter='\t',
+                       header='frozen_at_step', comments='')
+            break
         # ---------------------------------
 
     return pre_relu_V, Loss_mean_history, Loss_std_history, Loss_Data_history, Loss_Mass_history, Dead_history, StdDev_history

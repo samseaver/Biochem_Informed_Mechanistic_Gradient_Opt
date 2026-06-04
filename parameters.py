@@ -22,6 +22,12 @@ else:
     raise ValueError("Unsupported species selected. Please choose 'Poplar' or 'Sorghum'.")
 # ------------------------------------
 
+# --- Treatment subset filter ---
+# Restrict gradient descent to vbf_* columns whose name contains any of these substrings.
+# Set to None or an empty tuple to use every treatment found in vbf.tsv.
+TREATMENT_FILTERS = ("Control", "FeLim")
+# --------------------------------
+
 
 # Sets project specific information for automatic processing of transcriptome
 class Parameters_VBF: 
