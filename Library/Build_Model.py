@@ -708,20 +708,21 @@ def Loss_all(V, Vin, Vout, Vlb, parameter, gradient=False, wt=False, p_sv=1, sav
     L3, dL3 = Loss_Vin(V, parameter.Pin, Vin, parameter.mediumbound, gradient=gradient)
     L4, dL4 = Loss_Vpos(V, Vlb, gradient=gradient)
 
+    # Total loss is the SUM of the component losses, matching the LaTeX:
+    #   Loss_t = Loss_med + Loss_pos + Loss_sv + Loss_Vbf
+    # The gradient dL is already the un-normalized sum below; reporting the
+    # sum (rather than the mean) keeps the printed total loss consistent
+    # with the gradient actually being optimized.
     if hasattr(parameter, 'objective') and parameter.objective and parameter.objPout is not None:
         L5, dL5 = Loss_Vout_obj(V, parameter=parameter, gradient=gradient)
         L5 = tf.math.square(L5) # Assuming obj loss wasn't rewritten, keep its square
-        
+
         L = tf.math.reduce_sum(tf.concat([L1, L2, L3, L4, L5], axis=1), axis=1)
-        num_const = 5.0
         dL = dL1 + dL2 + dL3 + dL4 + dL5
     else:
         L = tf.math.reduce_sum(tf.concat([L1, L2, L3, L4], axis=1), axis=1)
-        num_const = 4.0
         dL = dL1 + dL2 + dL3 + dL4
 
-    L = tf.math.divide_no_nan(L, tf.constant(num_const, dtype=tf.float32))
-    
     return L, dL, L1, L2, L3, L4
 
 def custom_ReLU(V, Vout, Pout):
