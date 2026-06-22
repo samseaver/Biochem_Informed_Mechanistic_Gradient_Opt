@@ -1,113 +1,74 @@
+#!/usr/bin/env python
 from pathlib import Path
 import os
 import sys
 
-from pathlib import Path
-# project_root = str(Path(__file__).resolve())
-# sys.path.append(project_root)
+project_root = str(Path(__file__).resolve()).split('src')[0]
+sys.path.append(project_root)
+
+# --- Global Species Configuration ---
+# Toggle the active species here to automatically synchronize all downstream VBF and ML paths
+ACTIVE_SPECIES = "Poplar"  # Options: "Poplar" or "Sorghum"
+
+if ACTIVE_SPECIES == "Poplar":
+    GLOBAL_SPC = "Poplar"
+    GLOBAL_PROJECT_FOLDER = "projects/qpsi-260406-plastid-poplar/"
+    GLOBAL_BASE_MODEL = "plastidial-Ptrichocarpa-v4.1-reconstruction_fixed"
+elif ACTIVE_SPECIES == "Sorghum":
+    GLOBAL_SPC = "Sorghum"
+    GLOBAL_PROJECT_FOLDER = "projects/qpsi-260406-plastid-sorghum/"
+    GLOBAL_BASE_MODEL = "Sbicolor-v3.1.1-plastidial-reconstruction"
+else:
+    raise ValueError("Unsupported species selected. Please choose 'Poplar' or 'Sorghum'.")
+# ------------------------------------
+
+# --- Treatment subset filter ---
+# Restrict gradient descent to vbf_* columns whose name contains any of these substrings.
+# Set to None or an empty tuple to use every treatment found in vbf.tsv.
+TREATMENT_FILTERS = ("Control", "FeLim")
+# --------------------------------
 
 
-# from src.util.bcolors import bcolors
+# Sets project specific information for automatic processing of transcriptome
+class Parameters_VBF: 
+    def __init__(self):
+        self.spc = GLOBAL_SPC
+        self.project_folder = GLOBAL_PROJECT_FOLDER
+        self.model_name = GLOBAL_BASE_MODEL
 
+        self.model_path = f"{self.project_folder}inputs/{self.model_name}.json"
 
-# Sets project specif information for automatic processing of transcriptome
-class Parameters_ML_QPSI: 
-    def __init__(self, project_root, spc="Poplar"): 
-        self.spc = spc # "Sorghum" "Poplar"
-        
-        # Expreimental data specifics
-        self.time_stamp = 'all'
-        self.other_colm_val = 'Leaf'
-        self.time_points = ["02d", "04d", "07d", "14d", "21d"]
-        self.treatments = ['Control', 'FeLim', 'FeEX', 'ZnLim', 'ZnEx']
+        self.medium = "PlantAutotrophicMedia"
+        self.media_file  = f"{self.project_folder}inputs/{self.medium}"
+        self.media_path = f"{self.media_file}.json"
 
-        if self.time_stamp == 'all':
-            self.treatments = [trmt+"_"+tp for trmt in self.treatments for tp in self.time_points]
+        self.results_folder = f"{self.project_folder}integration_results/"
+        self.scores_folder = "/Users/seaver/Seaver_Lab/Git_Repos/RNASeq_Enzyme_Abundance/projects/qpsi-plastidial/integration_results/"
+        self.scores_file = os.path.join(self.scores_folder, f"{self.spc}_reaction_molar_fractions.tsv")
 
         self.ctrl_trmt = 'Control'
-        self.other_colm = 'tissue'
-        self.value_col = 'value'
-        self.useRelab = True
-        self.trmt_column = 'treatment'
-
-        # Simulation output folder
-        self.expFolder = "July3_maxControl_misexRelab_modelGenesCap_loopless_QPSI/"
-        self.expFolder = "Aug7_maxControl_misexRelab_modelGenesCap_loopless_QPSI/"
-
-        self.results_folder = os.path.join(project_root, "Dataset_input", self.expFolder)
-        if not os.path.exists(self.results_folder):
-            print("Unable to create folder: ")
-            print(self.results_folder)
-            # self.error = True
-  
-        VbfFileName = f"{self.spc}_complexFix_{self.other_colm}_{self.time_stamp}_restrMedia_Vbf_maxCtrl.csv"
-        self.VbfFile = os.path.join(self.results_folder, VbfFileName)
-
-        ## Relative abundance
-        self.relab_scores_file = os.path.join(self.results_folder, f"{self.spc}_relab_rxn_scores_tmm.csv")
-        ## Objective abundance
-        self.scores_file = os.path.join(self.results_folder, f"{self.spc}_objective_abundance_{self.ctrl_trmt}.tsv")
-
-
-        ### ---------- Common files: models and media
-        self.model_folder = os.path.join(project_root, "Dataset_input", "models_media")
-
-        # Species specific information and model file path  
-        fName = 'ptrich_4.1' if self.spc == "Poplar" else 'sbicolor_3.1.1'
-        mDate = '250512' if self.spc == "Poplar" else '250617'
-        modelName = f"{fName}_plastid_Thylakoid_Reconstruction_ComplexFix_RevFix3_{mDate}.json"
-        self.model_path = os.path.join(self.model_folder, modelName)
-
-        ## Media JSON file needed by the cobrakbase converter   
-        self.media_path = os.path.join(self.model_folder, "PlantPlastidialAutotrophicMedia_noATP_noADP.json")
-
-        ## Media CSV file needed by the ML simulator
-        self.mediumFile = os.path.join(self.model_folder, 'plastidial_model_duplicated_restricted_media_noATP_noADP_noP')
-
-        ## FVA fluxes
-        self.fluxes_file = os.path.join(self.model_folder, "Loopless_RevFix3_FVA_Output_Poplar_plastid.tsv")
-
-        ## ML model 
-        self.dataset_file = os.path.join(project_root, 'Dataset_model', f"{self.spc}_{str(len(self.treatments))}_{self.other_colm}_{self.time_stamp}_complexFix_loopless")
-
-
-
-
-class Parameters_frz: 
-    def __init__(self): 
-        self.spc = "athaliana" 
-        self.fName = 'Athaliana'
-        self.mDate = '070224'
-        self.time_points = ["ZT1", "ZT5", "ZT9", "ZT13", "ZT17", "ZT21"]
-
-        self.cobraname = f'{self.fName}_plastid_Thylakoid_Reconstruction_ComplexFix_RevFix3_{self.mDate}_duplicated'
+        self.time_stamp = 'all'
         
-        
-
-        self.mediumname = 'plastidial_model_duplicated_restricted_media_noATP_noADP_noP'
-
-        self.time_stamp = 'all' #'ZT9'
-        self.other_colm = 'genotype'
-        self.value_col = 'value'
-        self.ctrl_trmt = 'CTL'
-        self.trmt_column = 'treatment'
-        self.other_colm_value = 'TSU' # 'TSU', 'C24'
-        self.treatments = ['CTL', 'FRZ']
+        self.value_col = 'relative_reaction_score'
+        self.trmt_column = 'condition'
 
         self.useRelab = False
 
-        if self.time_stamp == 'all':
-            self.treatments = [trmt+"_"+tp for trmt in self.treatments for tp in self.time_points]
+class Parameters_ML: 
+    def __init__(self):
+        self.spc = GLOBAL_SPC
+        self.project_folder = GLOBAL_PROJECT_FOLDER
         
-                  # athaliana_complexFix_TSU_all_noADP_Vbf_maxCtrl_fullmodel
-        self.Vbfname = f"athaliana_complexFix_{self.other_colm}_{self.time_stamp}_noADP_Vbf_maxCtrl_fullmodel.csv"
+        # ML models utilize the duplicated reaction format
+        self.model_name = f"{GLOBAL_BASE_MODEL}_dup"
         
-        self.expFolder = "July3_maxControl_misexRelab_modelGenesCap_loopless_Atha/"
+        self.model_path = f"{self.project_folder}inputs/{self.model_name}.xml"
 
-        self.model_path = f"{cobraname}.json"
+        self.medium = "PlantAutotrophicMedia"
+        self.media_file  = f"{self.project_folder}inputs/{self.medium}"
 
-        self.media_path = "Dataset_input/PlantPlastidialAutotrophicMedia_noATP_noADP.json"
+        self.integration_folder = f"{self.project_folder}integration_results/"
+        self.vbf_file = f"{self.integration_folder}vbf.tsv"
 
-        self.remove_med_full = ["EX_cpd00067_e0_i", "EX_cpd00007_e0_i", "EX_cpd00008_e0_i", "EX_cpd00008_e0_o", "EX_cpd11632_e0_o", "EX_cpd00048_e0_o", "EX_cpd00013_e0_o", 'EX_cpd00073_e0_o', 'EX_cpd00073_e0_i', "EX_cpd00011_e0_o", "EX_cpd00001_e0_o", "EX_cpd00002_e0_o", 'EX_cpd00005_e0_o', 'EX_cpd00006_e0_i', 'EX_cpd00009_e0_o', 'EX_cpd00254_e0_o', 'EX_cpd10515_e0_o', 'EX_cpd11624_e0_i', 'EX_cpd11624_e0_o', 'EX_cpd00098_e0_i', 'EX_cpd00098_e0_o',  'EX_cpd27368_e0_i', 'EX_cpd27368_e0_o',  'EX_cpd00204_e0_i', 'EX_cpd00075_e0_i', 'EX_cpd00075_e0_o', 'EX_cpd00076_e0_i', 'EX_cpd00076_e0_o',  'EX_cpd00209_e0_i', 'EX_cpd00209_e0_o', "EX_cpd00205_e0_o", "EX_cpd00099_e0_o"]
-
-    
+        self.ml_folder = f"{self.project_folder}ml/"
+        self.training_folder = f"{self.ml_folder}training/"

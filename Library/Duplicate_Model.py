@@ -271,7 +271,6 @@ def duplicate_model(model, reac_id_to_io_count_and_way):
         str(len(new_model.reactions)) + " reactions.")
     return new_model
 
-
 def correct_duplicated_med(default_med, duplicated_med):
     # The goal of this function is to set the right upper bound values
     # for exchange reactions so that the medium object of the duplicated
