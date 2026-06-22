@@ -142,7 +142,7 @@ if __name__ == '__main__':
 	V0_init=-1
 
 	# penalty on the steady state constraint
-	svp=0.01
+	svp=1.0
 
 	# Which hard constraint to set for modeling 
 	# 0: for none

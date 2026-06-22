@@ -911,6 +911,14 @@ def Gradient_Descent(V, Vin, Vout, Vlb, parameter, mask, trainable=True, history
 
     # for saving checkpoint files
     ckpt_dir = os.path.join(parameter.output_dir, "checkpoints")
+    # drop stale per-step files from any prior run so the same dir
+    # doesn't accumulate mixed-run files (which silently produces
+    # inconsistent V row counts when a later run uses fewer conditions).
+    if os.path.isdir(ckpt_dir):
+        for fn in os.listdir(ckpt_dir):
+            if fn.startswith(("V_step_", "Losses_step_", "frozen_at_step")):
+                os.remove(os.path.join(ckpt_dir, fn))
+    os.makedirs(ckpt_dir, exist_ok=True)
     np.savetxt(os.path.join(ckpt_dir, "V_step_0.tsv"), V.numpy(), delimiter='\t')
 
     # --- INITIAL LOSS CALCULATION FOR STEP 0 ---
