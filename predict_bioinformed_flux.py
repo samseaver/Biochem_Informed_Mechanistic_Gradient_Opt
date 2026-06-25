@@ -2,6 +2,8 @@
 import warnings
 warnings.simplefilter(action='ignore', category=Warning)
 
+import argparse
+import shutil
 import sys
 import os
 import time
@@ -9,10 +11,26 @@ import random
 import numpy as np
 import pandas as pd
 
+# ---- CLI ----
+# --test       run a short sweep at TEST_EPOCHS (writes under ml/test/svp_X.X/)
+# --epochs N   override epoch count explicitly
+# --svp X      run only this svp value (otherwise loops over SVP_VALUES)
+# --seed N     explicit seed (default: int(time.time()))
+_argp = argparse.ArgumentParser(description=__doc__)
+_argp.add_argument("--test",   action="store_true",
+                   help="Short test sweep (TEST_EPOCHS), output under ml/test/")
+_argp.add_argument("--epochs", type=int, default=None,
+                   help="Override the epoch count (else: TEST_EPOCHS if --test, else EPOCHS)")
+_argp.add_argument("--svp",    type=float, default=None,
+                   help="Run only this svp value (else: loop over parameters.SVP_VALUES)")
+_argp.add_argument("--seed",   type=int, default=None,
+                   help="Explicit random seed (default: int(time.time()))")
+_args = _argp.parse_args()
+
 # Generate a random seed
-# Using time ensures it changes every second. 
+# Using time ensures it changes every second.
 # We wrap it in int() to get a clean integer.
-seed_value = int(time.time())
+seed_value = _args.seed if _args.seed is not None else int(time.time())
 
 # Print the seed so you can reproduce this run later if needed!
 print(f"--- INITIALIZING RANDOM SEED: {seed_value} ---")
@@ -129,20 +147,25 @@ if __name__ == '__main__':
     # print("printing ... ")
     # training_set.printout()
 
-	###----- Run ML simulation
-	epochs=1e6
-	learn_rate=5e-2
-	decay_rate=.333
+	###----- Run ML simulation (pull constants from parameters.py)
+	# EPOCHS / TEST_EPOCHS / LEARN_RATE / DECAY_RATE / SVP_VALUES are
+	# defined in parameters.py — edit them there to change the sweep.
+	if _args.epochs is not None:
+		epochs = _args.epochs
+	elif _args.test:
+		epochs = TEST_EPOCHS
+	else:
+		epochs = EPOCHS
+	learn_rate = LEARN_RATE
+	decay_rate = DECAY_RATE
+	svp_list   = [_args.svp] if _args.svp is not None else list(SVP_VALUES)
 
-	# initial flux for the simulation 
-	# -1: set Exchange reactions to 1000, Vbf for all reaction with a value or Vbf_mean 
+	# initial flux for the simulation
+	# -1: set Exchange reactions to 1000, Vbf for all reaction with a value or Vbf_mean
 	# 0 or above: set starting fluxes to will be set to V0_init
 	#           : if V0_init is 0, Exchange reactions are set to 1000
 	# the biomass reaction is always set to zero but it is hardcoded to find 'bio1'
 	V0_init=-1
-
-	# penalty on the steady state constraint
-	svp=1.0
 
 	# Which hard constraint to set for modeling 
 	# 0: for none
@@ -176,14 +199,48 @@ if __name__ == '__main__':
 		print(f"Warning: FVA file not found! Defaulting to standard initialization.")
 	# ======================================================================
 
-	# Now we pass it down the chain!
-	bmw.run_simulation(
-	    ml_parameters, 
-	    epochs=epochs, 
-	    learn_rate=learn_rate, 
-	    decay_rate=decay_rate, 
-	    V0_init=V0_init, 
-	    svp=svp, 
-	    hardConst=hardConst,
-	    exchanges = exchange_fluxes
-	)
+	# When --test is set, wipe the entire ml/test/ tree first so each test
+	# invocation starts from scratch. Production svp dirs (ml/svp_X.X/) are
+	# never touched here — those have their own per-step cleanup in
+	# Library/Build_Model.py Gradient_Descent.
+	if _args.test:
+		test_root = os.path.join(ml_parameters.ml_folder, "test")
+		if os.path.isdir(test_root):
+			print(f"--test: clearing {test_root}/ (stale contents from previous test run)")
+			shutil.rmtree(test_root)
+
+	# Per-svp loop. Each iteration writes to its own ml/svp_<value>/ (or
+	# ml/test/svp_<value>/ under --test) so successive runs don't clobber.
+	# stdout is tee'd to a per-svp run_output.txt for reproducibility.
+	class _Tee:
+		def __init__(self, *streams): self.streams = streams
+		def write(self, s):
+			for st in self.streams: st.write(s)
+		def flush(self):
+			for st in self.streams: st.flush()
+
+	for svp in svp_list:
+		svp_dir = (ml_parameters.test_svp_subdir(svp)
+		           if _args.test else ml_parameters.svp_subdir(svp))
+		os.makedirs(svp_dir, exist_ok=True)
+		ml_parameters.output_dir = svp_dir
+
+		log_path = os.path.join(svp_dir, "run_output.txt")
+		print(f"\n===== svp = {svp}  (epochs={epochs}, output={svp_dir}) =====")
+
+		with open(log_path, "w") as logf:
+			_original_stdout = sys.stdout
+			sys.stdout = _Tee(_original_stdout, logf)
+			try:
+				bmw.run_simulation(
+				    ml_parameters,
+				    epochs=epochs,
+				    learn_rate=learn_rate,
+				    decay_rate=decay_rate,
+				    V0_init=V0_init,
+				    svp=svp,
+				    hardConst=hardConst,
+				    exchanges = exchange_fluxes
+				)
+			finally:
+				sys.stdout = _original_stdout

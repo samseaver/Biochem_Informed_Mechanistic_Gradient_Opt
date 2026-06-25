@@ -30,12 +30,14 @@ def printout(V, Stats, model, param, id='all'):
 
 def processResults(reactions, V, Vin, Pin, Pout, id, param, treatments=[]):
     import pandas
+    # Use per-run output_dir if set (per-svp loop); fall back to ml_folder.
+    out = getattr(param, "output_dir", param.ml_folder)
     temp_df = pandas.DataFrame(data=V, columns=reactions, index=treatments)
-    temp_df.to_csv(f"{param.ml_folder}results/{id}_V_headers.tsv", sep='\t')
+    temp_df.to_csv(f"{out}results/{id}_V_headers.tsv", sep='\t')
 
-    np.savetxt(f"{param.ml_folder}results/{id}_X.tsv", Vin, delimiter='\t')
-    np.savetxt(f"{param.ml_folder}results/{id}_Pin.tsv", Pin, delimiter='\t')
-    np.savetxt(f"{param.ml_folder}results/{id}_Pout.tsv", Pout, delimiter='\t')
+    np.savetxt(f"{out}results/{id}_X.tsv", Vin, delimiter='\t')
+    np.savetxt(f"{out}results/{id}_Pin.tsv", Pin, delimiter='\t')
+    np.savetxt(f"{out}results/{id}_Pout.tsv", Pout, delimiter='\t')
 
 def run_simulation(param, epochs=2.5e6, learn_rate=1, decay_rate=.333, V0_init=-1, svp=15, hardConst=1, exchanges = None, use_objective=False, biomass_max=100):
     
@@ -55,33 +57,39 @@ def run_simulation(param, epochs=2.5e6, learn_rate=1, decay_rate=.333, V0_init=-
     # End of What you can change
 
     start = time.time()
-    # Create model and run GD for X and Y in trainingfile
+    # Per-run output goes to param.output_dir (set per-svp by the driver
+    # script). Falls back to ml_folder for backward compatibility.
+    out = getattr(param, "output_dir", param.ml_folder)
+
+    # Create model and run GD for X and Y in trainingfile.
+    # training_folder stays on `param` directly — training data is
+    # invariant to svp and is shared across all per-svp runs.
     model = Neural_Model(trainingfile = param.training_folder+'training',
                          model_type = 'MM_QP',
                          timestep = timestep,
                          learn_rate = learn_rate,
                          decay_rate = decay_rate,
                          exchanges = exchanges,
-                         output_dir = param.ml_folder,
+                         output_dir = out,
                          verbose=True)
 
-    if not os.path.exists(f"{param.ml_folder}initialize"): os.makedirs(f"{param.ml_folder}initialize")
-    np.savetxt(f"{param.ml_folder}initialize/Y_{id}.tsv", model.Y, delimiter='\t')
+    if not os.path.exists(f"{out}initialize"): os.makedirs(f"{out}initialize")
+    np.savetxt(f"{out}initialize/Y_{id}.tsv", model.Y, delimiter='\t')
 
     # Runs the appropriate method
-    if not os.path.exists(f"{param.ml_folder}finalize"): os.makedirs(f"{param.ml_folder}finalize")
-    loss_outfile=param.ml_folder+"finalize/loss"
-    targets_outfile=param.ml_folder+"finalize/targets"
+    if not os.path.exists(f"{out}finalize"): os.makedirs(f"{out}finalize")
+    loss_outfile=out+"finalize/loss"
+    targets_outfile=out+"finalize/targets"
 
     # Make sure a 'checkpoints' folder exists
-    ckpt_dir = os.path.join(param.ml_folder, "checkpoints")
+    ckpt_dir = os.path.join(out, "checkpoints")
     if not os.path.exists(ckpt_dir): os.makedirs(ckpt_dir)
 
     if model.model_type == 'MM_QP':
         Ypred, Stats = MM_QP(model, loss_outfile=loss_outfile, targets_outfile=targets_outfile, V0_init=V0_init, svp=svp, hardConst=hardConst, verbose=True)
 
     # Printing results
-    if not os.path.exists(f"{param.ml_folder}results"): os.makedirs(f"{param.ml_folder}results")
+    if not os.path.exists(f"{out}results"): os.makedirs(f"{out}results")
     printout(Ypred, Stats, model, param, id)
 
     end = time.time()

@@ -28,6 +28,18 @@ else:
 TREATMENT_FILTERS = ("Control", "FeLim")
 # --------------------------------
 
+# --- Gradient-descent sweep + budget ---
+# When predict_bioinformed_flux.py is run without --svp, it loops over these
+# values in order. Each value runs to convergence (with per-condition early
+# stopping) and writes to its own ml/svp_<value>/ subdirectory.
+SVP_VALUES   = [2.0, 1.0, 0.5, 0.1]
+
+EPOCHS       = int(1e6)        # full-budget epoch count
+TEST_EPOCHS  = 5000            # used when --test is passed; ~1-2 min per svp
+LEARN_RATE   = 5e-2            # gradient-descent learn rate
+DECAY_RATE   = 0.333           # momentum decay
+# --------------------------------
+
 
 # Sets project specific information for automatic processing of transcriptome
 class Parameters_VBF: 
@@ -43,7 +55,10 @@ class Parameters_VBF:
         self.media_path = f"{self.media_file}.json"
 
         self.results_folder = f"{self.project_folder}integration_results/"
-        self.scores_folder = "/Users/seaver/Seaver_Lab/Git_Repos/RNASeq_Enzyme_Abundance/projects/qpsi-plastidial/integration_results/"
+        # Reaction scores (molar fractions per condition) ship inside the
+        # project's inputs/ directory in projects.tar.gz, so the scores
+        # folder = the same inputs folder used by the model JSON / media.
+        self.scores_folder = f"{self.project_folder}inputs/"
         self.scores_file = os.path.join(self.scores_folder, f"{self.spc}_reaction_molar_fractions.tsv")
 
         self.ctrl_trmt = 'Control'
@@ -72,3 +87,18 @@ class Parameters_ML:
 
         self.ml_folder = f"{self.project_folder}ml/"
         self.training_folder = f"{self.ml_folder}training/"
+
+        # output_dir is set per-run by predict_bioinformed_flux.py to point
+        # to the per-svp subdirectory (see svp_subdir / test_svp_subdir below).
+        # Build_Model_Wrapper picks this up via getattr(..., "output_dir", ml_folder)
+        # so it falls back gracefully if no svp loop is being used.
+        self.output_dir = self.ml_folder
+
+    # ---- per-svp output paths ----
+    def svp_subdir(self, svp):
+        """Per-svp output directory under ml/. e.g. ml/svp_1.0/"""
+        return f"{self.ml_folder}svp_{svp}/"
+
+    def test_svp_subdir(self, svp):
+        """Test-mode per-svp output directory, isolated from production."""
+        return f"{self.ml_folder}test/svp_{svp}/"
