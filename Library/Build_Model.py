@@ -693,8 +693,78 @@ def Loss_constraint(V, Vin, Vlb, parameter, gradient=False):
     L = tf.math.divide_no_nan(L, tf.constant(3.0, dtype=tf.float32))
     return L, dL2 + dL3 + dL4
 
+def _loop_adjacency(parameter):
+    """Symmetric num_rxns x num_rxns matrix M with M[i_f,i_r]=M[i_r,i_f]=1 for
+    every reversible split pair (_f/_r or _o/_i). Cached on the parameter."""
+    M = getattr(parameter, "_loop_M", None)
+    if M is not None:
+        return M
+    reactions = [str(r) for r in parameter.reactions]
+    n = len(reactions); d = {}
+    for j, rid in enumerate(reactions):
+        if rid.endswith("_f") or rid.endswith("_o"):
+            d.setdefault(rid[:-2], {})["f"] = j
+        elif rid.endswith("_r") or rid.endswith("_i"):
+            d.setdefault(rid[:-2], {})["r"] = j
+    M = np.zeros((n, n), dtype=np.float32); npair = 0
+    for _k, v in d.items():
+        if "f" in v and "r" in v:
+            M[v["f"], v["r"]] = 1.0; M[v["r"], v["f"]] = 1.0; npair += 1
+    parameter._loop_M = M; parameter._loop_npair = npair
+    return M
+
+
+def Loss_loop(V, parameter, gradient=False):
+    """Complementarity (loop-law) penalty that eliminates futile 2-cycles.
+
+    The problem it solves
+    ---------------------
+    To keep every flux non-negative (all reactions running left-to-right), each
+    reversible reaction is split into a forward (``_f``/``_o``) and a reverse
+    (``_r``/``_i``) copy. Nothing then couples the two copies, so the optimizer
+    is free to run BOTH at once: ``v_f = v_r = X`` carries zero *net* flux
+    (net = ``v_f - v_r`` = 0) yet perfectly satisfies mass balance and any V_bf
+    target. That is a thermodynamically infeasible futile 2-cycle -- the dominant
+    artifact introduced by the reversible-reaction splitting, and what drives the
+    large majority of reactions onto the FVA "loop wall".
+
+    The penalty
+    -----------
+    Add a complementarity term that is zero iff at most one direction of each
+    split pair is active::
+
+        L_loop = 0.5 * lam_c * sum_over_pairs( v_f * v_r )
+
+    Using the symmetric pair-adjacency matrix M (``M[i_f,i_r]=M[i_r,i_f]=1``,
+    built once by ``_loop_adjacency``) this is a single mat-mul::
+
+        L_loop      = 0.5 * lam_c * sum( V .* (V @ M) )
+        dL_loop/dV  =       lam_c * (V @ M)
+
+    (column ``i_f`` of ``V @ M`` holds ``v_r`` and vice-versa, so the gradient
+    pushes each direction down in proportion to its partner's flux). Driving
+    ``v_f * v_r`` toward 0 forces one direction of every pair to zero, so the net
+    flux becomes well-defined and the futile cycles disappear.
+
+    Strength is set by the environment variable ``BIOFLUX_LOOP_LAMBDA_C``
+    (default 0 = penalty off, i.e. behaviour is unchanged unless enabled).
+    """
+    import os as _os
+    lam_c = float(_os.environ.get("BIOFLUX_LOOP_LAMBDA_C", "0") or 0)
+    L = tf.zeros([tf.shape(V)[0], 1], dtype=tf.float32)
+    dL = 0.0 * V
+    if lam_c <= 0:
+        return L, dL
+    M = ops.convert_to_tensor(_loop_adjacency(parameter))
+    VM = ops.matmul(V, M)                    # col i_f holds v_r, col i_r holds v_f
+    L = L + 0.5 * lam_c * tf.reduce_sum(V * VM, axis=1, keepdims=True)
+    if gradient:
+        dL = dL + lam_c * VM
+    return L, dL
+
+
 def Loss_all(V, Vin, Vout, Vlb, parameter, gradient=False, wt=False, p_sv=1, save=False):
-    if (Vout is None) or ((Vout.shape[0] is not None) and (Vout.shape[0] < 1)): 
+    if (Vout is None) or ((Vout.shape[0] is not None) and (Vout.shape[0] < 1)):
         L, dL = Loss_constraint(V, Vin, Vlb, parameter, gradient=gradient)
         return L, dL
     
@@ -722,6 +792,11 @@ def Loss_all(V, Vin, Vout, Vlb, parameter, gradient=False, wt=False, p_sv=1, sav
     else:
         L = tf.math.reduce_sum(tf.concat([L1, L2, L3, L4], axis=1), axis=1)
         dL = dL1 + dL2 + dL3 + dL4
+
+    # Complementarity loop-law penalty (no-op unless BIOFLUX_LOOP_LAMBDA_C set)
+    Lloop, dLloop = Loss_loop(V, parameter, gradient=gradient)
+    dL = dL + dLloop
+    L = L + tf.reshape(Lloop, tf.shape(L))
 
     return L, dL, L1, L2, L3, L4
 
