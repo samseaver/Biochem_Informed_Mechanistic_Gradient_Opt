@@ -136,7 +136,15 @@ if __name__ == '__main__':
 	print(f"Adding flexible biomass ...")
 	fbp = FlexibleBiomassPkg(fb_dup_model)
 	fbp.build_package({"bio_rxn_id":biomass_reaction.id})
-	fva_result=fva(fb_dup_model,fraction_of_optimum=0.75,pfba_factor=1.2,processes=1)
+	# Loopless FVA disabled: reversible-duplication futile cycles are removed
+	# during gradient descent by the complementarity loop-law penalty in the
+	# loss (Loss_loop, lam_c=0.01), so we do not need loopless FVA here.
+	_loopless = None
+	if _loopless:
+		print(f"Running LOOPLESS FVA (loopless={_loopless}) ...")
+		fva_result=fva(fb_dup_model,fraction_of_optimum=0.75,loopless=_loopless,processes=1)
+	else:
+		fva_result=fva(fb_dup_model,fraction_of_optimum=0.75,pfba_factor=1.2,processes=1)
 
 	# Need to print to project results but I leave out the exchange reactions
 	# from the flexible biomass

@@ -8,7 +8,7 @@ sys.path.append(project_root)
 
 # --- Global Species Configuration ---
 # Toggle the active species here to automatically synchronize all downstream VBF and ML paths
-ACTIVE_SPECIES = "Poplar"  # Options: "Poplar" or "Sorghum"
+ACTIVE_SPECIES = "Poplar"  # hardcoded species; edit to "Sorghum" to switch (no env)
 
 if ACTIVE_SPECIES == "Poplar":
     GLOBAL_SPC = "Poplar"
@@ -55,16 +55,18 @@ class Parameters_VBF:
         self.media_path = f"{self.media_file}.json"
 
         self.results_folder = f"{self.project_folder}integration_results/"
-        # Reaction scores (molar fractions per condition) ship inside the
-        # project's inputs/ directory in projects.tar.gz, so the scores
-        # folder = the same inputs folder used by the model JSON / media.
+        # Objective reaction scores (r_s, un-normalized) per condition ship inside
+        # the project's inputs/ directory alongside the model JSON / media. This is
+        # the objective reaction-scores file from the RNASeq pipeline
+        # ({spc}_reaction_scores.tsv), NOT the molar-fractions file.
         self.scores_folder = f"{self.project_folder}inputs/"
-        self.scores_file = os.path.join(self.scores_folder, f"{self.spc}_reaction_molar_fractions.tsv")
+        self.scores_file = os.path.join(self.scores_folder, f"{self.spc}_reaction_scores.tsv")
 
         self.ctrl_trmt = 'Control'
         self.time_stamp = 'all'
         
-        self.value_col = 'relative_reaction_score'
+        # Objective reaction score (r_s), un-normalized (no plastid-pool division).
+        self.value_col = "reaction_score"
         self.trmt_column = 'condition'
 
         self.useRelab = False

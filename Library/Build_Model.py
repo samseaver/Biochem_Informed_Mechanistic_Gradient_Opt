@@ -746,11 +746,10 @@ def Loss_loop(V, parameter, gradient=False):
     ``v_f * v_r`` toward 0 forces one direction of every pair to zero, so the net
     flux becomes well-defined and the futile cycles disappear.
 
-    Strength is set by the environment variable ``BIOFLUX_LOOP_LAMBDA_C``
-    (default 0 = penalty off, i.e. behaviour is unchanged unless enabled).
+    Strength is hard-coded to ``lam_c = 0.01`` (the complementarity loop-law
+    penalty is always on).
     """
-    import os as _os
-    lam_c = float(_os.environ.get("BIOFLUX_LOOP_LAMBDA_C", "0") or 0)
+    lam_c = 0.01
     L = tf.zeros([tf.shape(V)[0], 1], dtype=tf.float32)
     dL = 0.0 * V
     if lam_c <= 0:
