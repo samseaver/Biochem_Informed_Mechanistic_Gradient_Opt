@@ -86,6 +86,28 @@ def load_fluxes(parameters, scores_df, verbose=False):
     # 7. Apply Updates forcefully using the dictionary
     fva_df['max'] = fva_df.apply(lambda row: update_dict.get(row['reaction'], row['max']), axis=1)
 
+    # 7b. Catch loop-collapsed reversible pairs
+    # A pair is "loop-collapsed" when both original FVA maxes hit the solver
+    # ceiling AND their values are within ~1% of each other (i.e., the
+    # collapsed net |f-r| is numerical noise, not real above-wall capacity).
+    # Requiring BOTH tests protects directional pairs (like Calvin cycle PGK,
+    # GAPDH, PRK) where one direction has above-wall capacity: those exceed
+    # the ratio threshold and are preserved.
+    LOOP_WALL_FACTOR = 0.90    # threshold on cutoff (both sides near wall)
+    LOOP_RATIO       = 0.01    # |f-r| / max < 1% => truly indistinguishable
+    _fo, _ri = fo_vals.values, ri_vals.values
+    _max = np.maximum(_fo, _ri)
+    _diff_ratio = np.where(_max > 1e-6, np.abs(_fo - _ri) / _max, 0.0)
+    loop_wall_mask = (_fo >= LOOP_WALL_FACTOR * cutoff) & \
+                     (_ri >= LOOP_WALL_FACTOR * cutoff) & \
+                     (_diff_ratio < LOOP_RATIO)
+    loop_wall_ids = list(id_fo[loop_wall_mask]) + list(id_ri[loop_wall_mask])
+    if loop_wall_mask.sum() > 0:
+        print(f"Loop-wall detection: {loop_wall_mask.sum()} reversible pairs "
+              f"with both directions >= {LOOP_WALL_FACTOR}x cutoff ({cutoff:.1f}) "
+              f"AND |f-r|/max < {LOOP_RATIO:.0%}; resetting to 0 for median imputation.")
+        fva_df.loc[fva_df['reaction'].isin(loop_wall_ids), 'max'] = 0.0
+
     # Calculate median_flux to use for imputation
     median_flux = fva_df.loc[mask_real, 'max'].median()
     print(f"Median Flux For Imputation: {median_flux:.2f}")
