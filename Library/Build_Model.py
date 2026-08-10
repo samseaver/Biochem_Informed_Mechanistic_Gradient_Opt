@@ -376,60 +376,6 @@ def custom_ReLU(V, Vout, Pout):
     return Vpos
 
 ###############################################################################
-# Dense model
-###############################################################################
-
-# def input_ANN_Dense(parameter, verbose=False):
-#     # Shape X and Y depending on the model used
-#     if parameter.scaler != 0: # Normalize X
-#         parameter.X, parameter.scaler = MaxScaler(parameter.X)
-#     if verbose:
-#         print('ANN Dense scaler', parameter.scaler)
-#     return parameter.X, parameter.Y
-
-# def Dense_layers(inputs, parameter, trainable=True, verbose=False):
-#     # Build a dense architecture with some hidden layers
-
-#     activation=parameter.activation
-#     n_hidden=parameter.n_hidden
-#     dropout=parameter.dropout
-#     hidden_dim=parameter.hidden_dim
-#     output_dim=parameter.output_dim
-#     hidden = inputs
-#     n_hidden = 0 if hidden_dim == 0 else n_hidden
-#     for i in range(n_hidden):
-#         hidden = Dense(hidden_dim,
-#                        kernel_initializer='random_normal',
-#                        bias_initializer='zeros',
-#                        activation='relu', trainable=trainable) (hidden)
-#         hidden = Dropout(dropout)(hidden)
-#     if verbose:
-#         print('Dense layer n_hidden, hidden_dim, output_dim, activation, trainable:', \
-#               n_hidden, hidden_dim, output_dim, activation, trainable)
-#     outputs = Dense(output_dim,
-#                     kernel_initializer='random_normal',
-#                     bias_initializer='zeros',
-#                     activation=activation, trainable=trainable) (hidden)
-#     return outputs
-
-# def ANN_Dense(parameter, trainable=True, verbose=False):
-#     # A standard Dense model with several layers
-
-#     input_dim, output_dim = parameter.input_dim, parameter.output_dim
-#     inputs = Input(shape=(input_dim,))
-#     outputs = Dense_layers(inputs, parameter,
-#                            trainable=trainable, verbose=verbose)
-#     model = keras.models.Model(inputs=[inputs], outputs=[outputs])
-#     loss = 'mse' if parameter.regression else 'binary_crossentropy'
-#     metrics = ['mae'] if parameter.regression else ['acc']
-#     model.compile(loss=loss, optimizer='adam', metrics=metrics)
-#     if verbose == 2: print(model.summary())
-#     print('nbr parameters:', model.count_params())
-#     parameter.model = model
-
-#     return parameter
-
-###############################################################################
 # AMN models (1)
 # AMN_QP: a ANN_Dense trainable prior layer and a mechanistic layer
 # making use of gradient descent
@@ -952,165 +898,6 @@ def AMN_QP(parameter, trainable=True, verbose=False):
 
 
 ###############################################################################
-# AMN models (3)
-# AMN_Wt: An RNN where input (the medium) and flux vector V are passed
-# to the recurrent cell
-# M = V2M . V
-# V = Win x Vin + Wrec x M2V . M
-# Win and Wrec are weight matrices learned during training
-# A hidden layer can be added to Win (not Wrec)
-# Warning: The model AMN_Wt works only with UB training sets
-###############################################################################
-# remove!!
-# class RNNCell(keras.layers.Layer): # RNN Cell, as a layer subclass.
-#     def __init__(self, parameter):
-#         meta_dim = parameter.S.shape[0]
-#         flux_dim = parameter.S.shape[1]
-#         medm_dim = parameter.Pin.shape[0]
-#         self.input_size = medm_dim
-#         self.state_size = flux_dim
-#         self.mediumbound = parameter.mediumbound
-#         self.hidden_dim = parameter.hidden_dim
-#         self.S  = tf.convert_to_tensor(np.float32(parameter.S))
-#         self.V2M = tf.convert_to_tensor(np.float32(parameter.V2M))
-#         self.Pin = tf.convert_to_tensor(np.float32(parameter.Pin))
-#         # Normalize M2V
-#         M2V = parameter.M2V
-#         for i in range(flux_dim):
-#             if np.count_nonzero(M2V[i]) > 0:
-#                 M2V[i] = M2V[i] / np.count_nonzero(M2V[i])
-#         self.M2V  = tf.convert_to_tensor(np.float32(M2V))
-#         self.dropout = parameter.dropout
-#         super(RNNCell, self).__init__(trainable=True)
-
-#     def build(self, input_shape):
-#         meta_dim = self.S.shape[0]
-#         flux_dim = self.S.shape[1]
-#         medm_dim = self.input_size
-#         hidden_dim = self.hidden_dim
-#         print("meta_dim:   ", meta_dim)
-#         print("flux_dim:   ", flux_dim)
-#         print("medm_dim:   ", medm_dim)
-#         print("hidden_dim: ", hidden_dim)
-#         # weigths to compute V for both input (i) and recurrent cell (r)
-#         if self.mediumbound == 'UB': # no kernel_Vh and kernel_Vi for EB
-#             if hidden_dim > 0: # plug an hidden layer upstream of Winput
-#                 self.wh_V = self.add_weight(shape=(medm_dim, hidden_dim),
-#                                         name='kernel_Vh')
-#                 self.wi_V = self.add_weight(shape=(hidden_dim, medm_dim),
-#                                         name='kernel_Vi')
-#             else:
-#                 self.wi_V = self.add_weight(shape=(medm_dim, medm_dim),
-#                                         name='kernel_Vi')
-#         self.wr_V = self.add_weight(shape=(flux_dim, meta_dim),
-#                                         name='kernel_Vr')
-#         self.bi_V  = self.add_weight(shape=(medm_dim,),
-#                                         initializer='random_normal',
-#                                         name='bias_Vi',
-#                                         trainable=True)
-#         self.br_V  = self.add_weight(shape=(flux_dim,),
-#                                         initializer='random_normal',
-#                                         name='bias_Vr',
-#                                         trainable=True)
-#         self.built = True
-
-#     def call(self, inputs, states):
-#         # At steady state we have
-#         # M = V2M V and V = (M2V x W) M + V0
-#         # Keep Vin only
-#         # inputs = CROP(1, 0, self.input_size)(inputs)
-
-#         V = states[0]
-#         # print("RNN states -> ", states[0])
-#         if self.mediumbound == 'UB':
-#             if self.hidden_dim > 0:
-#                 VH = K.dot(inputs, self.wh_V)
-#                 V0 = K.dot(VH, self.wi_V) + self.bi_V
-#             else:
-#                 V0 = K.dot(inputs, self.wi_V) + self.bi_V
-#         else:
-#             V0 = inputs # EB case
-#         V0 = tf.linalg.matmul(V0, self.Pin, b_is_sparse=True)
-#         M = tf.linalg.matmul(V,tf.transpose(self.V2M),b_is_sparse=True)
-#         W = tf.math.multiply(self.M2V,self.wr_V)
-#         V = tf.linalg.matmul(M,tf.transpose(W),b_is_sparse=True)
-#         V = V + V0 + self.br_V
-
-#         return V, [V]
-
-#     def get_config(self): # override tf.get_config to save RNN model
-#         # The code below does not work !! anyone to debug?
-#         config = super().get_config().copy()
-#         #config.update({'parameter': self.parameter.__dict__})
-#         return config
-
-# remove!!
-# def split_inputs(inputs, parameter):
-#     d0, d1 = \
-#         inputs[:,0,:].shape[0], inputs[:,0,:].shape[1]
-#     if d1 > parameter.input_dim:
-#         Vin = CROP(1, 0, parameter.input_dim)(inputs[:,0,:])
-#         Vbf = CROP(1, parameter.input_dim, d1)(inputs[:,0,:])
-#         print('Vlb ', Vbf.shape)
-#         # print(abc)
-#     else:
-#         Vin = inputs[:,0,:]
-#         Vbf = inputs[:,0,:]
-
-#     return Vin, Vbf
-
-# remove!!
-# def Wt_layers(inputs, parameter, trainable=True, verbose=False):
-#     # Build and return AMN layers using an RNN cell
-#     with CustomObjectScope({'RNNCell': RNNCell}):
-#         rnn = keras.layers.RNN(RNNCell(parameter))
-
-#     Vin, Vbf = split_inputs(inputs, parameter)
-
-#     rnn_input = CROP(2, 0, parameter.input_dim)(inputs)
-#     V = rnn(rnn_input)
-#     # Vin = inputs[:,0,:]
-#     print("inputs Wt_layers ", inputs.shape)
-#     print("inputs 0 Wt_layers ", inputs[:,0,:].shape)
-
-#     return output_AMN(V, Vin, None, None, parameter, verbose=verbose)
-
-# remove!!
-# def AMN_Wt(parameter, verbose=False):
-#     # Build and return an AMN using an RNN cell
-#     # input : medium vector in parameter
-#     # output: experimental steaty state fluxes
-
-#     # Get dimensions and build model
-#     input_dim, output_dim  = parameter.X.shape[2], parameter.Y.shape[1]
-#     inputs = keras.Input((None, input_dim))
-#     outputs = Wt_layers(inputs, parameter)
-
-
-#     # Compile
-#     model = keras.models.Model(inputs, outputs)
-#     # (loss, metrics) = (my_mse, [my_r2])
-#     Vin, Vbf = split_inputs(inputs, parameter)
-
-#     # ## use lambda layer loss
-#     # loss_model = generate_loss_model(parameter, Vin, Vbf)
-#     # # Create custom loss instance
-#     # custom_loss = CustomLoss(loss_model, parameter)
-#     # loss, metrics = custom_loss, None
-
-#     # use custom loss function
-#     loss, metrics = biochem_loss(parameter), None
-
-#     # Compile the model with the custom loss function
-#     model.compile(loss=loss,  optimizer='adam', metrics=metrics)#, run_eagerly=True)
-#     print(model.summary())
-#     if verbose == 2: print(model.summary())
-#     print('nbr parameters:', model.count_params())
-#     parameter.model = model
-
-#     return parameter
-
-###############################################################################
 # Non-trainable Mechanistic Model (MM)
 # using QP 
 ###############################################################################
@@ -1329,9 +1116,6 @@ def evaluate_model(model, x, y_true, parameter, inputmodel= False, verbose=False
 
 def model_input(parameter, trainable=True, verbose=False):
     # return input for the appropriate model_type
-    # remove!!
-    # if   'ANN' in parameter.model_type:
-    #     return input_ANN_Dense(parameter, verbose=verbose)
     if 'AMN' in parameter.model_type:
         # parameter.batch_size = 10
         return input_AMN(parameter, verbose=verbose)
@@ -1345,13 +1129,6 @@ def model_type(parameter, verbose=False):
     # create the appropriate model_type
     if verbose:
         print('-----------------------------------', parameter.model_type)
-    # remove!!
-    # if 'ANN_Dense' in parameter.model_type:
-    #     return ANN_Dense(parameter, verbose=verbose)
-    # elif 'AMN_QP' in parameter.model_type:
-    #     return AMN_QP(parameter, verbose=verbose)
-    # elif 'AMN_Wt' in parameter.model_type:
-    #     return AMN_Wt(parameter, verbose=verbose)
     if 'AMN_QP' in parameter.model_type:
         return AMN_QP(parameter, verbose=verbose)
     else:
@@ -1451,89 +1228,6 @@ def train_model(parameter, Xtrain, Ytrain, Xtest, Ytest, verbose=False):
     # run.finish()
     return Net, ytrain, ytest, otrain, ltrain, otest, ltest, history
 
-
-# remove!!
-# def train_evaluate_model(parameter, verbose=False):
-#     # A standard function to create a model, fit, and Kflod cross validate
-#     # with early stopping
-#     # Kfold is performed for param.xfold test sets (if param.niter = 0)
-#     # otherwise only for niter test sets
-#     # Inptuts:
-#     # - all necessary parameter including
-#     #   parameter.model, the function used to create the model
-#     #   parameter.input_model, the function used to shape the model inputs
-#     #   parameter.X and parameter.Y, the dataset
-#     #   parameter.regression (boolean) if false classification
-#     # Outputs:
-#     # - the best model (highest Q2/Acc on kfold test sets)
-#     # - the values predicted for each fold (if param.niter = 0)
-#     #   or the whole set when (param.niter > 0)
-#     # - the mean R2/Acc on the test sets
-#     # - the mean constraint value on the test sets
-#     # Must have verbose=True to verbose the fit
-
-#     param = copy.copy(parameter)
-#     X, Y = model_input(param, verbose=verbose)
-#     param.X, param.Y = X, Y
-#     # print('****** ', X[0])
-
-#     # Train on all data
-#     if param.xfold < 2: # no cross-validation
-#         Net, ytrain, ytest, otrain, ltrain, otest, ltest, history = \
-#         train_model(param, X, Y, X, Y, verbose=verbose)
-#         # Return Stats
-#         stats = ReturnStats(otrain, 0, ltrain, 0, otest, 0, ltest, 0)
-
-#         temp_pred = Net.model.predict(X)
-#         np.savetxt(os.path.join(parameter.output_dir,"final_PredEval.csv"), temp_pred, delimiter=',')
-
-#         return Net, ytrain, stats, history
-
-#     # Cross-validation loop
-#     Otrain, Otest, Ltrain, Ltest, Omax, Netmax, Ypred = \
-#     [], [], [], [], -1.0e32, None, np.copy(Y)
-#     kfold = KFold(n_splits=param.xfold, shuffle=True)
-#     kiter = 0
-#     for train, test in kfold.split(X, Y):
-#         if verbose: print('------- train', X[train].shape, Y[train].shape)
-#         if verbose: print('------- test ', X[test].shape, Y[test].shape)
-#         # print()
-#         # print(CROP(2, 4, X[train].shape[2])(X[train])[0])
-#         # print(abc)
-#         # parameter.input_dim
-#         Net, ytrain, ytest, otrain, ltrain, otest, ltest, history = \
-#         train_model(param, X[train], Y[train], X[test], Y[test], verbose=verbose)
-#         # compile Objective (O) and Constraint (C) for train and test
-#         Otrain.append(otrain)
-#         Otest.append(otest)
-#         Ltrain.append(ltrain)
-#         Ltest.append(ltest)
-#         # in case y does not have the same shape than Y
-#         if Ypred.shape[1] != ytest.shape[1]:
-#             n, m = Y.shape[0], ytest.shape[1]
-#             Ypred = np.zeros(n*m).reshape(n,m)
-#         for i in range(len(test)):
-#             Ypred[test[i]] = ytest[i]
-#         # Get the best network
-#         (Omax, Netmax) = (otest, Net) if otest > Omax else (Omax, Netmax)
-#         kiter += 1
-#         if (param.niter > 0 and kiter >= param.niter) or kiter >= param.xfold:
-#                 break
-
-#     # Prediction using best model on whole dataset
-#     Pred, _ = evaluate_model(Netmax.model, X, Y, param, verbose=verbose)
-#     Ypred = Pred if param.niter > 0 else Ypred
-
-#     # np.savetxt(os.path.join(parameter.output_dir,"final_Ypred.csv"), Ypred, delimiter=',')
-#     # np.savetxt(os.path.join(parameter.output_dir,"final_PredEval.csv"), Pred, delimiter=',')
-
-#     # Get Stats
-#     stats = ReturnStats(np.mean(Otrain), np.std(Otrain),
-#                         np.mean(Ltrain), np.std(Ltrain),
-#                         np.mean(Otest),  np.std(Otest),
-#                         np.mean(Ltest),  np.std(Ltest))
-
-#     return Netmax, Ypred, stats, history
 
 class Neural_Model:
     # To save, load & print all kinds of models including reservoirs
@@ -1797,16 +1491,6 @@ class Neural_Model:
         # Get additional parameters (matrices)
         self.get_parameter(verbose=verbose)
         # Then load model
-        # remove!!
-        # if self.model_type == 'AMN_Wt':
-        #     self.model = load_model(filemodel,
-        #                             custom_objects={'RNNCell':RNNCell,
-        #                                             'parameter':Neural_Model
-        #                                             , 'custom_loss': CustomLoss
-        #                                             # , 'loss_model': generate_loss_model(parameter, Vin, Vbf)
-        #                                             , 'loss': biochem_loss(parameter)},
-        #                             compile=False)
-        # else:
         self.model = load_model(filemodel, compile=False)
 
     def printout(self,filename=''):
