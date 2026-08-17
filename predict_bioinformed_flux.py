@@ -25,6 +25,10 @@ _argp.add_argument("--svp",    type=float, default=None,
                    help="Run only this svp value (else: loop over parameters.SVP_VALUES)")
 _argp.add_argument("--seed",   type=int, default=None,
                    help="Explicit random seed (default: int(time.time()))")
+_argp.add_argument("--newinit", action="store_true",
+                   help="Evidence-only initialization (V0_init=-2): unscored "
+                        "reactions start at 0 instead of true_vbf_mean/2, and "
+                        "each media chain starts at its exchange net FVA value")
 _args = _argp.parse_args()
 
 # Generate a random seed
@@ -165,7 +169,7 @@ if __name__ == '__main__':
 	# 0 or above: set starting fluxes to will be set to V0_init
 	#           : if V0_init is 0, Exchange reactions are set to 1000
 	# the biomass reaction is always set to zero but it is hardcoded to find 'bio1'
-	V0_init=-1
+	V0_init=-2 if _args.newinit else -1
 
 	# Which hard constraint to set for modeling 
 	# 0: for none

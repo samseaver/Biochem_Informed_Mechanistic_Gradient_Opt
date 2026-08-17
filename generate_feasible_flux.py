@@ -136,15 +136,22 @@ if __name__ == '__main__':
 	print(f"Adding flexible biomass ...")
 	fbp = FlexibleBiomassPkg(fb_dup_model)
 	fbp.build_package({"bio_rxn_id":biomass_reaction.id})
-	# Loopless FVA disabled: reversible-duplication futile cycles are removed
-	# during gradient descent by the complementarity loop-law penalty in the
-	# loss (Loss_loop, lam_c=0.01), so we do not need loopless FVA here.
-	_loopless = None
-	if _loopless:
-		print(f"Running LOOPLESS FVA (loopless={_loopless}) ...")
-		fva_result=fva(fb_dup_model,fraction_of_optimum=0.75,loopless=_loopless,processes=1)
-	else:
-		fva_result=fva(fb_dup_model,fraction_of_optimum=0.75,pfba_factor=1.2,processes=1)
+	# Loopless FVA ENABLED. The complementarity loop-law penalty in the loss
+	# (Loss_loop, lam_c=0.01) removes reversible-duplication futile cycles from
+	# the *solution* V during gradient descent, but it never touches the
+	# *capacity envelope* MF, which is read off this FVA. Without loopless,
+	# 486/630 columns pin at the pFBA-budget wall (459.97 = 1.2 x pFBA total
+	# flux / 12-reaction cycle), get flagged as loop-collapsed, and are replaced
+	# by a single imputed median -- erasing all directional information.
+	_loopless = True
+	# loopless and pfba_factor are independent in cobra and compose: loopless
+	# removes thermodynamically infeasible cycles from the envelope, pfba_factor
+	# caps the total flux budget at 1.2x the pFBA minimum. Keeping pfba_factor
+	# holds the new envelope numerically comparable to the published run (it acts
+	# as a near-uniform 0.909x scaling of the photosynthetic ceilings).
+	print(f"Running FVA (loopless={_loopless}, pfba_factor=1.2) ...")
+	fva_result=fva(fb_dup_model,fraction_of_optimum=0.75,loopless=_loopless,
+	               pfba_factor=1.2,processes=1)
 
 	# Need to print to project results but I leave out the exchange reactions
 	# from the flexible biomass
