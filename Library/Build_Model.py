@@ -541,6 +541,8 @@ def output_AMN(V, Vin, V0, Vlb, parameter, verbose=False):
     return outputs
 
 def Gradient_Descent(V, Vin, Vout, Vlb, parameter, mask, trainable=True, history=False, V0_init=-2, svp=2.0, hardConst=0, verbose=False):
+    # V0_init / svp / hardConst are passed straight through; see get_V0 for the
+    # V0_init levels (-2 evidence-only = published, -1 historical, 0, >0).
     # Input:
     # S [m x n]: stoichiometric matrix
     # V [n]: the reaction flux vector
@@ -1045,6 +1047,8 @@ def get_V0(inputs, parameter, targets, lower_bounds, trainable, V0_init=-2, verb
     return V0, Vin, Vout, Vlb, mask
 
 def QP_layers(inputs, parameter, targets = np.asarray([]).reshape(0,0), lower_bounds=np.asarray([]).reshape(0,0), trainable=True, history=False, V0_init=-2, svp=2.0, hardConst=0, verbose=False):
+    # V0_init / svp / hardConst are passed straight through; see get_V0 for the
+    # V0_init levels (-2 evidence-only = published, -1 historical, 0, >0).
     # Build and return an architecture using GD
     # The function is used with and without targets
     # - With targets there is no training set and GD is run
@@ -1145,6 +1149,8 @@ def get_flux_output(param, output):
     return Vf
 
 def run_MM_QP(parameter, loss_outfile=None, targets_outfile=None, history=True, V0_init=-2, svp=2.0, hardConst=0, verbose=False):
+    # V0_init / svp / hardConst are passed straight through; see get_V0 for the
+    # V0_init levels (-2 evidence-only = published, -1 historical, 0, >0).
     # Solve LP or QP without training
     # inputs:
     # - problem parameter, history flag
@@ -1176,6 +1182,8 @@ def run_MM_QP(parameter, loss_outfile=None, targets_outfile=None, history=True, 
                                    0, 0, 0, 0)
 
 def MM_QP(parameter, loss_outfile=None, targets_outfile= None, history=True, V0_init=-2, svp=2.0, hardConst=0, verbose=False):
+    # V0_init / svp / hardConst are passed straight through; see get_V0 for the
+    # V0_init levels (-2 evidence-only = published, -1 historical, 0, >0).
     # Solve QP without training
     return run_MM_QP(parameter, loss_outfile=loss_outfile, targets_outfile=targets_outfile, history=history, V0_init=V0_init, svp=svp, hardConst=hardConst, verbose=verbose)
 

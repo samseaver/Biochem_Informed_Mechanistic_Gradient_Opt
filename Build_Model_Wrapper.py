@@ -40,7 +40,27 @@ def processResults(reactions, V, Vin, Pin, Pout, id, param, treatments=[]):
     np.savetxt(f"{out}results/{id}_Pout.tsv", Pout, delimiter='\t')
 
 def run_simulation(param, epochs=2.5e6, learn_rate=1, decay_rate=.333, V0_init=-2, svp=2.0, hardConst=0, exchanges = None, use_objective=False, biomass_max=100):
-    
+    """Run one gradient-descent simulation. Defaults are the published settings.
+
+    V0_init selects how the starting flux vector is built. Full description in
+    Library/Build_Model.py::get_V0; in brief:
+      -2  DEFAULT, "evidence-only". Scored reactions start at V_bf; UNSCORED
+          reactions stay at 0 rather than being imputed at ~true_vbf_mean/2;
+          media chains are seeded from integration_results/media_chain_init.tsv.
+      -1  historical. Scored reactions start at V_bf; unscored ones are imputed
+          by the capacity-aware ~true_vbf_mean/2 rule; no media-chain seeding.
+       0  no V_bf seeding, no imputation; exchange reactions set to 1000.
+      >0  flat fill at the constant V0_init.
+
+    CAVEAT on the output naming below: V0_initVal collapses every negative
+    V0_init to the single label "startVbfandMean", so a -1 run and a -2 run
+    write result files with identical names and can only be told apart by the
+    "[Init] V0_init=-2" line in the run log. Change the label if you need the
+    two to coexist in one directory.
+
+    hardConst is retained only for that filename; Build_Model ignores its value.
+    """
+
     # timestep = int(1.0e5) # LP 1.0e4 QP 1.0e5
     timestep = int(epochs) # 3.5e6
     learn_rate = learn_rate # LP 0.3 QP 1.0
