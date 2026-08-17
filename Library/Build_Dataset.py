@@ -19,6 +19,28 @@ sys.setrecursionlimit(10000) # for row_echelon function
 # New methods for Vbf
 ###############################################################################
 
+
+def _s_matrix_path():
+    """Destination for the S-matrix export, or None if there is nowhere to put it.
+
+    This used to be written as a bare 's_matrix.csv' relative to the working
+    directory, so the eight concurrent arms of a sweep all wrote the same file
+    and the survivor was whichever finished last. Follow BF_PROJECT -- the
+    per-arm override the sweep already sets -- so each arm writes into its own
+    integration_results/ instead.
+    """
+    proj = os.environ.get("BF_PROJECT", "").rstrip("/")
+    d = os.path.join(proj, "integration_results") if proj else "integration_results"
+    return os.path.join(d, "s_matrix.csv") if os.path.isdir(d) else None
+
+
+def _write_s_matrix(model):
+    path = _s_matrix_path()
+    if path is None:
+        return
+    cobra.util.array.create_stoichiometric_matrix(
+        model, array_type="DataFrame").to_csv(path)
+
 def get_matrices_vbf(model, medium, vbf, measure, reactions):
     # Build the matrices consumed by the QP gradient-descent solver.
     # vbf is the list of
@@ -33,7 +55,7 @@ def get_matrices_vbf(model, medium, vbf, measure, reactions):
 
     # m = metabolite, n = reaction/v/flux, p = medium
     S = np.asarray(cobra.util.array.create_stoichiometric_matrix(model))
-    cobra.util.array.create_stoichiometric_matrix(model, array_type = "DataFrame").to_csv("s_matrix.csv")
+    _write_s_matrix(model)
     n, m, n_in, n_out = S.shape[1], S.shape[0], len(medium), len(measure)
 
     # Get V2M and M2V from S
@@ -121,7 +143,7 @@ def get_matrices(model, medium, measure, reactions):
 
     # m = metabolite, n = reaction/v/flux, p = medium
     S = np.asarray(cobra.util.array.create_stoichiometric_matrix(model))
-    cobra.util.array.create_stoichiometric_matrix(model, array_type = "DataFrame").to_csv("s_matrix.csv")
+    _write_s_matrix(model)
 
     n, m, n_in, n_out = S.shape[1], S.shape[0], len(medium), len(measure)
 
@@ -173,7 +195,7 @@ def get_matrices_original(model, medium, measure, reactions):
 
     # m = metabolite, n = reaction/v/flux, p = medium
     S = np.asarray(cobra.util.array.create_stoichiometric_matrix(model))
-    cobra.util.array.create_stoichiometric_matrix(model, array_type = "DataFrame").to_csv("s_matrix.csv")
+    _write_s_matrix(model)
     n, m, n_in, n_out = S.shape[1], S.shape[0], len(medium), len(measure)
 
     # Get V2M and M2V from S

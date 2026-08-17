@@ -1,0 +1,11 @@
+# Python bytecode -- regenerated on every run
+__pycache__/
+*.pyc
+
+# Claude Code session history (recall plugin)
+.recall/
+
+# NOTE: projects/ is deliberately NOT ignored. A curated subset of the run
+# outputs is to be committed and tagged for the preprint; see the reorganisation
+# step before adding anything, so that 16 GB of checkpoints does not go in by
+# accident. Until then it simply shows as untracked.

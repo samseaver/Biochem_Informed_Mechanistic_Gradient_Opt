@@ -273,16 +273,29 @@ def Loss_Vin(V, Pin, Vin, bound='UB', gradient=False):
         dLoss =  0 * V
     return Loss_norm, dLoss
 
-def Loss_SV(V, S, gradient=False, save=False):
+def Loss_SV(V, S, gradient=False, save=None):
+    """Mass-balance loss. `save`, when given, is (checkpoint_dir, step).
+
+    Writes the full per-condition x per-metabolite residual S.v to
+    <checkpoint_dir>/sv_loss.csv, overwritten each time, with the step it came
+    from recorded in the header so a stale file cannot be mistaken for the
+    final one. Previously this went to a bare 'sv_loss.csv' in the working
+    directory, which the concurrent arms of a sweep overwrote in turn, leaving
+    one unattributable snapshot. The companion sv_lossNorm.csv is no longer
+    written: it is the per-condition aggregate, already recorded per step as
+    the Mass_Loss column of Losses_step_*.tsv.
+    """
     if not tf.is_tensor(S):
         S  = tf.convert_to_tensor(np.float32(S))
     Loss = tf.linalg.matmul(V, tf.transpose(S), b_is_sparse=True)
-    
-    Loss_norm = tf.math.square(tf.norm(Loss, axis=1, keepdims=True)) / S.shape[0] 
-    
+
+    Loss_norm = tf.math.square(tf.norm(Loss, axis=1, keepdims=True)) / S.shape[0]
+
     if save:
-        np.savetxt("sv_loss.csv", Loss, delimiter=',')
-        np.savetxt("sv_lossNorm.csv", Loss_norm, delimiter=',')
+        _ckpt_dir, _step = save
+        np.savetxt(os.path.join(_ckpt_dir, "sv_loss.csv"), Loss, delimiter=',',
+                   header=f"step={_step}; rows=conditions, cols=metabolites",
+                   comments='# ')
 
     if gradient:
         dLoss = tf.linalg.matmul(Loss, S, b_is_sparse=True)
@@ -389,7 +402,7 @@ def Loss_loop(V, parameter, gradient=False):
     return L, dL
 
 
-def Loss_all(V, Vin, Vout, Vlb, parameter, gradient=False, wt=False, p_sv=1, save=False):
+def Loss_all(V, Vin, Vout, Vlb, parameter, gradient=False, wt=False, p_sv=1, save=None):
     if (Vout is None) or ((Vout.shape[0] is not None) and (Vout.shape[0] < 1)):
         L, dL = Loss_constraint(V, Vin, Vlb, parameter, gradient=gradient)
         return L, dL
@@ -538,7 +551,7 @@ def Gradient_Descent(V, Vin, Vout, Vlb, parameter, mask, trainable=True, history
     # history: to specify if loss is computed and recorded
     # Output: Loss and updated V
 
-    save = False
+    save = None
     # Not history here if trainable
     history = False if trainable else history
 
@@ -578,7 +591,7 @@ def Gradient_Descent(V, Vin, Vout, Vlb, parameter, mask, trainable=True, history
     # --- INITIAL LOSS CALCULATION FOR STEP 0 ---
     # Perform a forward pass without calculating gradients
     L_0, dL_0, lVbf_0, Lsv_0, LVin_0, LPos_0 = Loss_all(
-        V, Vin, Vout, Vlb, parameter, gradient=False, p_sv=svp, save=False
+        V, Vin, Vout, Vlb, parameter, gradient=False, p_sv=svp, save=None
     )
 
     # Square the data and mass losses locally to see the driving math
@@ -602,7 +615,7 @@ def Gradient_Descent(V, Vin, Vout, Vlb, parameter, mask, trainable=True, history
     for t in range(1, parameter.timestep+1):  # Update V with GD
         # Get Loss and gradient
         L, dL, lVbf, Lsv, LVin, LPos = Loss_all(V, Vin, Vout, Vlb, parameter, gradient=True, p_sv = svp, save=save)
-        save = False
+        save = None
 
         # --- NEW: L1 REGULARIZATION FOR FREE REACTIONS ---
         lambda_l1 = 1e-4  # The strength of the squeeze
@@ -745,7 +758,9 @@ def Gradient_Descent(V, Vin, Vout, Vlb, parameter, mask, trainable=True, history
             prev_V_val = current_V_val
 
             if verbose and (t/1.0e3 == int(t/1.0e3)):
-                save = True
+                # (checkpoint dir, step) -- Loss_SV writes the per-metabolite
+                # residual there and stamps this step into the file header.
+                save = (ckpt_dir, t)
                 print('QP-Loss', t, Loss_mean, Loss_std)
 
         # --- EARLY STOPPING CHECK (per-condition) ---

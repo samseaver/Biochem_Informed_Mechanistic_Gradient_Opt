@@ -1,0 +1,45 @@
+# Runtime environment for predict_bioinformed_flux.py and generate_feasible_flux.py
+#
+# Tested in micromamba env: bf-runtime
+# Python: 3.11
+#
+# Build steps (from scratch):
+#
+#   micromamba create -y -n bf-runtime -c conda-forge \
+#       python=3.11 numpy pandas scipy plotly matplotlib glpk
+#   micromamba run -n bf-runtime pip install \
+#       "tensorflow==2.15.*" cobra \
+#       chemicals chemw networkx jinja2 sympy "scikit-learn==1.2.0" \
+#       silence_tensorflow scikeras keras_core
+#
+# Note on keras versions: scikeras pulls keras 3.x, which pip-warns about a
+# version conflict with tensorflow 2.15's required keras 2.x. In practice
+# the Library.Build_Model imports run fine despite the warning; the test
+# sweep completed end-to-end with this combination.
+#
+# Note: ModelSEEDPy and cobrakbase are NOT pip-installed; they are loaded
+# from local checkouts via sys.path.append in
+# predict_bioinformed_flux.py and generate_feasible_flux.py.
+# Required paths on this machine:
+#   /scratch/seaver/Collaborations/Greenham_UMinn/ModelSEEDPy
+#   /scratch/seaver/Collaborations/Greenham_UMinn/cobrakbase
+
+# Pinned versions actually installed (output of `pip freeze` filtered):
+chemicals==1.5.2
+ChemW==0.3.5
+cobra==0.31.1
+jinja2  # any 3.x
+matplotlib==3.11.0
+networkx==3.6.1
+numpy==1.26.4
+optlang==1.9.1
+pandas==2.3.3
+plotly  # any 5.x
+scikit-learn==1.2.0
+scipy  # any 1.x
+silence_tensorflow  # required by Library/Build_Model.py
+scikeras  # required by Library/Build_Model.py
+keras_core  # required by Library/Build_Model.py
+swiglpk==5.0.13
+sympy==1.14.0
+tensorflow==2.15.1
