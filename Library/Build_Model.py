@@ -527,7 +527,7 @@ def output_AMN(V, Vin, V0, Vlb, parameter, verbose=False):
 
     return outputs
 
-def Gradient_Descent(V, Vin, Vout, Vlb, parameter, mask, trainable=True, history=False, V0_init=-1, svp=15, hardConst=0, verbose=False):
+def Gradient_Descent(V, Vin, Vout, Vlb, parameter, mask, trainable=True, history=False, V0_init=-2, svp=2.0, hardConst=0, verbose=False):
     # Input:
     # S [m x n]: stoichiometric matrix
     # V [n]: the reaction flux vector
@@ -559,7 +559,7 @@ def Gradient_Descent(V, Vin, Vout, Vlb, parameter, mask, trainable=True, history
     # arm can be re-run with a different stopping rule without editing (and
     # having to remember to revert) the defaults. Unset env -> published values.
     patience_limit = int(os.environ.get("BF_PATIENCE", 500))
-    min_delta      = float(os.environ.get("BF_MIN_DELTA", 1e-2))
+    min_delta      = float(os.environ.get("BF_MIN_DELTA", 1e-3))
     print(f"[EarlyStop] patience_limit={patience_limit}  min_delta={min_delta:g}")
     # ---------------------------------
 
@@ -771,11 +771,50 @@ def Gradient_Descent(V, Vin, Vout, Vlb, parameter, mask, trainable=True, history
 
     return pre_relu_V, Loss_mean_history, Loss_std_history, Loss_Data_history, Loss_Mass_history, Dead_history, StdDev_history
 
-def get_V0(inputs, parameter, targets, lower_bounds, trainable, V0_init=-1, verbose=False):
-    # Get initial vector V0 from input and target
-    # Return V0, Vin, Vout, mask
-    # When target is not provided this function compute
-    # the initial vector V0 using Dense_Layers
+def get_V0(inputs, parameter, targets, lower_bounds, trainable, V0_init=-2, verbose=False):
+    """Build the starting flux vector V0. Returns (V0, Vin, Vout, Vlb, mask).
+
+    `targets` is the per-condition V_bf matrix. A reaction has a V_bf only if
+    it has a reaction score, hence an apparent catalytic rate, hence a row in
+    Pout; reactions with no transcript evidence have none, and how those are
+    seeded is what `V0_init` selects.
+
+    V0_init values
+    --------------
+    -2  "evidence-only" (CLI: --newinit). THE PUBLISHED SETTING.
+        * scored reactions start at their V_bf;
+        * UNSCORED reactions stay at 0 -- no true_vbf_mean/2 imputation -- so
+          they are recruited only where the mass-balance term demands flux;
+        * each media chain (exchange -> e0/c0 transporter -> c0/d0
+          transporter) is set to the exchange's net FVA capacity, read from
+          integration_results/media_chain_init.tsv. All three legs of a chain
+          carry the same flux at steady state, so all three get the same
+          value on the column matching the exchange's direction, opposing
+          column 0. Raises FileNotFoundError if that table is absent; build
+          it with make_media_chain_init.py.
+        Zeroing the unscored reactions without seeding the media chain would
+        strand the media layer, which is why the two are coupled.
+
+    -1  "startVbfandMean" (the historical default).
+        * scored reactions start at their V_bf;
+        * unscored reactions are imputed by the base-reaction capacity-aware
+          rule, roughly true_vbf_mean/2 bounded by each base reaction's FVA
+          capacity, so every reaction starts somewhere;
+        * no media-chain seeding.
+
+     0  no V_bf seeding and no imputation; exchange reactions set to 1000.
+
+    >0  flat fill: every non-negative entry of V0 is set to the constant
+        V0_init.
+
+    Regardless of V0_init: 'bio1' is forced to 0.0, and the exchange ceilings
+    parsed from fva.tsv are injected as a warm start.
+
+    Note the naming is only sensitive to the sign -- Build_Model_Wrapper
+    labels any V0_init < 0 as "startVbfandMean", so -1 and -2 runs produce
+    identically named result files and can only be told apart by the
+    "[Init] V0_init=-2" line in the run log.
+    """
 
     Pin = tf.convert_to_tensor(np.float32(parameter.Pin))
     if targets.shape[0] > 0: # Initialize AMN when targets provided
@@ -990,7 +1029,7 @@ def get_V0(inputs, parameter, targets, lower_bounds, trainable, V0_init=-1, verb
 
     return V0, Vin, Vout, Vlb, mask
 
-def QP_layers(inputs, parameter, targets = np.asarray([]).reshape(0,0), lower_bounds=np.asarray([]).reshape(0,0), trainable=True, history=False, V0_init=-1, svp=15, hardConst=0, verbose=False):
+def QP_layers(inputs, parameter, targets = np.asarray([]).reshape(0,0), lower_bounds=np.asarray([]).reshape(0,0), trainable=True, history=False, V0_init=-2, svp=2.0, hardConst=0, verbose=False):
     # Build and return an architecture using GD
     # The function is used with and without targets
     # - With targets there is no training set and GD is run
@@ -1090,7 +1129,7 @@ def get_flux_output(param, output):
                     param.Y.shape[1]+NBR_CONSTRAINT+len_fluxes) (output)
     return Vf
 
-def run_MM_QP(parameter, loss_outfile=None, targets_outfile=None, history=True, V0_init=-1, svp=15, hardConst=0, verbose=False):
+def run_MM_QP(parameter, loss_outfile=None, targets_outfile=None, history=True, V0_init=-2, svp=2.0, hardConst=0, verbose=False):
     # Solve LP or QP without training
     # inputs:
     # - problem parameter, history flag
@@ -1121,7 +1160,7 @@ def run_MM_QP(parameter, loss_outfile=None, targets_outfile=None, history=True, 
     return Vf.numpy(), ReturnStats(r2, 0, Loss_mean[-1], Loss_std[-1],
                                    0, 0, 0, 0)
 
-def MM_QP(parameter, loss_outfile=None, targets_outfile= None, history=True, V0_init=-1, svp=15, hardConst=0, verbose=False):
+def MM_QP(parameter, loss_outfile=None, targets_outfile= None, history=True, V0_init=-2, svp=2.0, hardConst=0, verbose=False):
     # Solve QP without training
     return run_MM_QP(parameter, loss_outfile=loss_outfile, targets_outfile=targets_outfile, history=history, V0_init=V0_init, svp=svp, hardConst=hardConst, verbose=verbose)
 

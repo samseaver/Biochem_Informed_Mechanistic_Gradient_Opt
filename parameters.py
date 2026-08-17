@@ -42,7 +42,7 @@ TREATMENT_FILTERS = ("Control", "FeLim")
 # stopping) and writes to its own ml/svp_<value>/ subdirectory.
 SVP_VALUES   = [2.0, 1.0, 0.5, 0.1]
 
-EPOCHS       = int(1e6)        # full-budget epoch count
+EPOCHS       = int(2.5e6)      # full-budget epoch count (the published sweep)
 TEST_EPOCHS  = 5000            # used when --test is passed; ~1-2 min per svp
 LEARN_RATE   = 5e-2            # gradient-descent learn rate
 DECAY_RATE   = 0.333           # momentum decay

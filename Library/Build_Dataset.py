@@ -20,7 +20,7 @@ sys.setrecursionlimit(10000) # for row_echelon function
 ###############################################################################
 
 def get_matrices_vbf(model, medium, vbf, measure, reactions):
-    # Get matrices for AMN_QP and AMN_Wt
+    # Build the matrices consumed by the QP gradient-descent solver.
     # vbf is the list of
     # Return
     # - S [mxn]: stochiometric matrix
@@ -109,7 +109,7 @@ def get_objective(model):
     return obj_id
 
 def get_matrices(model, medium, measure, reactions):
-    # Get matrices for AMN_QP and AMN_Wt
+    # Build the matrices consumed by the QP gradient-descent solver.
     # Return
     # - S [mxn]: stochiometric matrix
     # - V2M [mxn]: to compute metabolite
@@ -161,7 +161,7 @@ def get_matrices(model, medium, measure, reactions):
     return S, Pin, Pout, V2M, M2V
 
 def get_matrices_original(model, medium, measure, reactions):
-    # Get matrices for AMN_QP and AMN_Wt
+    # Build the matrices consumed by the QP gradient-descent solver.
     # Return
     # - S [mxn]: stochiometric matrix
     # - V2M [mxn]: to compute metabolite

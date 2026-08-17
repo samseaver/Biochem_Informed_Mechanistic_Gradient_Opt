@@ -26,14 +26,23 @@ _argp.add_argument("--svp",    type=float, default=None,
 _argp.add_argument("--seed",   type=int, default=None,
                    help="Explicit random seed (default: int(time.time()))")
 _argp.add_argument("--newinit", action="store_true",
-                   help="Evidence-only initialization (V0_init=-2): unscored "
-                        "reactions start at 0 instead of true_vbf_mean/2, and "
-                        "each media chain starts at its exchange net FVA value")
+                   help="Deprecated no-op: evidence-only initialization "
+                        "(V0_init=-2) is now the default. Accepted so the "
+                        "published sweep scripts keep working unchanged.")
+_argp.add_argument("--oldinit", action="store_true",
+                   help="Revert to the historical initialization (V0_init=-1): "
+                        "unscored reactions imputed at ~true_vbf_mean/2 and no "
+                        "media-chain seeding")
 _args = _argp.parse_args()
 
 # Generate a random seed
 # Using time ensures it changes every second.
 # We wrap it in int() to get a clean integer.
+#
+# PREPRINT PROVENANCE: the arms-260812 sweep behind the manuscript was run
+# with the fixed seed 1786429390, passed explicitly as --seed. Reproducing
+# those runs requires passing it; the wall-clock default below will not
+# reproduce them.
 seed_value = _args.seed if _args.seed is not None else int(time.time())
 
 # Print the seed so you can reproduce this run later if needed!
@@ -164,12 +173,20 @@ if __name__ == '__main__':
 	decay_rate = DECAY_RATE
 	svp_list   = [_args.svp] if _args.svp is not None else list(SVP_VALUES)
 
-	# initial flux for the simulation
-	# -1: set Exchange reactions to 1000, Vbf for all reaction with a value or Vbf_mean
-	# 0 or above: set starting fluxes to will be set to V0_init
-	#           : if V0_init is 0, Exchange reactions are set to 1000
-	# the biomass reaction is always set to zero but it is hardcoded to find 'bio1'
-	V0_init=-2 if _args.newinit else -1
+	# Initial flux vector for the simulation. See get_V0() in Library/Build_Model.py
+	# for the full description; in brief:
+	#   -2  DEFAULT, "evidence-only". THE PUBLISHED SETTING. Scored reactions
+	#       start at V_bf; unscored reactions stay at 0 rather than being imputed
+	#       at true_vbf_mean/2, so they are recruited only where mass balance
+	#       demands it; each media chain is seeded from
+	#       integration_results/media_chain_init.tsv (make_media_chain_init.py).
+	#   -1  --oldinit, historical. Scored reactions start at V_bf; unscored ones are
+	#       imputed by the capacity-aware ~true_vbf_mean/2 rule; no media chain.
+	#    0  no V_bf seeding, no imputation; exchange reactions set to 1000.
+	#   >0  flat fill: every non-negative entry set to V0_init.
+	# 'bio1' is always forced to 0.0 (hardcoded by id), and the exchange ceilings
+	# from fva.tsv are injected as a warm start, whichever value is used.
+	V0_init = -1 if _args.oldinit else -2
 
 	# Which hard constraint to set for modeling 
 	# 0: for none

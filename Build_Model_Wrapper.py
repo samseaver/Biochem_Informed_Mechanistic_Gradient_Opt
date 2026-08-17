@@ -39,7 +39,7 @@ def processResults(reactions, V, Vin, Pin, Pout, id, param, treatments=[]):
     np.savetxt(f"{out}results/{id}_Pin.tsv", Pin, delimiter='\t')
     np.savetxt(f"{out}results/{id}_Pout.tsv", Pout, delimiter='\t')
 
-def run_simulation(param, epochs=2.5e6, learn_rate=1, decay_rate=.333, V0_init=-1, svp=15, hardConst=1, exchanges = None, use_objective=False, biomass_max=100):
+def run_simulation(param, epochs=2.5e6, learn_rate=1, decay_rate=.333, V0_init=-2, svp=2.0, hardConst=0, exchanges = None, use_objective=False, biomass_max=100):
     
     # timestep = int(1.0e5) # LP 1.0e4 QP 1.0e5
     timestep = int(epochs) # 3.5e6
