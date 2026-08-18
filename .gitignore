@@ -44,3 +44,7 @@ projects/*/ml/training/temp_Pout.tsv
 # ---------------------------------------------------------------------------
 Paper_Figures/analysis_tables
 data/E1.0_*
+
+# fig_bio_rslt.py writes one PNG per penalty; only the un-suffixed copy at the
+# operating point is the manuscript figure and is tracked.
+Paper_Figures/fig_bio_rslt_p*.png

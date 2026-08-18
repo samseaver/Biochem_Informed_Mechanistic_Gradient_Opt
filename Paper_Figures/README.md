@@ -27,7 +27,11 @@ same name as its output.
 `.svg` siblings are included where a vector version exists. LaTeX builds
 against the `.png`/`.jpg` files only, so the four SVGs are not referenced by
 the manuscript; they are kept in case a production process wants vector art.
-Everything else here is used.
+
+`fig_bio_rslt.py` writes one PNG per penalty as `fig_bio_rslt_p<svp>.png` and,
+at the operating point only, a second copy under the un-suffixed name the
+manuscript includes. So `fig_bio_rslt_p2.0.png` reappears on every run; it is
+regenerated output, not a stray file.
 
 `fig_ml_rslt_base.py` is not a figure generator on its own: it holds the shared
 plotting machinery — the config, the data loaders, and panels 1–5 — that
