@@ -52,11 +52,11 @@ def run_simulation(param, epochs=2.5e6, learn_rate=1, decay_rate=.333, V0_init=-
        0  no V_bf seeding, no imputation; exchange reactions set to 1000.
       >0  flat fill at the constant V0_init.
 
-    CAVEAT on the output naming below: V0_initVal collapses every negative
-    V0_init to the single label "startVbfandMean", so a -1 run and a -2 run
-    write result files with identical names and can only be told apart by the
-    "[Init] V0_init=-2" line in the run log. Change the label if you need the
-    two to coexist in one directory.
+    Output files are named after the initialization that produced them:
+    startVbfandZero (-2), startVbfandMean (-1), startFlat<N> (>=0). Before
+    2026-08-18 every negative V0_init was labelled "startVbfandMean", so any
+    result file predating that carries the -1 label whatever init it used;
+    the run log's "[Init] V0_init=-2" line is the authority for those.
 
     hardConst is retained only for that filename; Build_Model ignores its value.
     """
@@ -70,7 +70,15 @@ def run_simulation(param, epochs=2.5e6, learn_rate=1, decay_rate=.333, V0_init=-
     hardConst_dict = {0: "noRelu", 
                       1: "VposRelu", 
                       2: "VposVbfRelu"}
-    V0_initVal = "startVbfandMean" if V0_init < 0 else "start"+str(V0_init)
+    # Name the outputs after what the initialization actually did, so a run's
+    # files identify themselves. Until 2026-08-18 every negative V0_init was
+    # labelled "startVbfandMean", which was correct for -1 and wrong for -2.
+    if V0_init == -2:
+        V0_initVal = "startVbfandZero"   # scored -> Vbf, unscored -> 0
+    elif V0_init < 0:
+        V0_initVal = "startVbfandMean"   # scored -> Vbf, unscored -> ~mean/2
+    else:
+        V0_initVal = "startFlat" + str(V0_init)
 
     id = f'{V0_initVal}_{hardConst_dict[hardConst]}'
 

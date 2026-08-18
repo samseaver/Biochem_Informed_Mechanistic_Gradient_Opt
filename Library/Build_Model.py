@@ -827,10 +827,12 @@ def get_V0(inputs, parameter, targets, lower_bounds, trainable, V0_init=-2, verb
     Regardless of V0_init: 'bio1' is forced to 0.0, and the exchange ceilings
     parsed from fva.tsv are injected as a warm start.
 
-    Note the naming is only sensitive to the sign -- Build_Model_Wrapper
-    labels any V0_init < 0 as "startVbfandMean", so -1 and -2 runs produce
-    identically named result files and can only be told apart by the
-    "[Init] V0_init=-2" line in the run log.
+    Output files are named for the init that produced them (see
+    Build_Model_Wrapper.run_simulation): startVbfandZero (-2),
+    startVbfandMean (-1), startFlat<N> (>=0). Result files written before
+    2026-08-18 carry the startVbfandMean label whatever init they used, since
+    the label previously keyed only on the sign; for those, the run log's
+    "[Init] V0_init=-2" line is the authority.
     """
 
     Pin = tf.convert_to_tensor(np.float32(parameter.Pin))
