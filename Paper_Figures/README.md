@@ -15,7 +15,7 @@ same name as its output.
 | Manuscript file | Figure | Generating script |
 |---|---|---|
 | `fig_method.jpg` | 1 — overall approach | none (hand-drawn diagram) |
-| `fig_score_method.jpg` | 2 — reaction-score logic | none (hand-drawn diagram) |
+| `fig_score_method2.png` | 2 — reaction-score logic | none (hand-drawn diagram) |
 | `fig_proteome.png` | 3 — plastid vs non-plastid abundance | in the RNASeq repo — see below |
 | `fig_scatter_rslt.png` | 4 — objective/relative reaction scores | in the RNASeq repo — see below |
 | `fig_ml_detail.png` | — ML workflow schematic | none (hand-drawn diagram) |
@@ -24,7 +24,10 @@ same name as its output.
 | `fig_photo_etc.png` | 6 — ETC/Calvin + GLK regulon | `fig_photo_etc.py` |
 | `fig_norm_benefit.png` | 7 — pool-normalized reallocation | `fig_norm_benefit.py` |
 
-`.svg` siblings are included where a vector version exists.
+`.svg` siblings are included where a vector version exists. LaTeX builds
+against the `.png`/`.jpg` files only; the SVGs, `fig_bio_rslt_p2.0.png` (a
+single-penalty variant) and `fig_score_method.jpg` (superseded by
+`fig_score_method2.png`) are not referenced by the manuscript.
 
 `fig_ml_rslt_base.py` is not a figure generator on its own: it holds the shared
 plotting machinery — the config, the data loaders, and panels 1–5 — that
@@ -114,8 +117,17 @@ with a plain file-not-found if they are absent:
 
 | Input | Default location | Override |
 |---|---|---|
-| cross-species analysis tables | `Paper_Figures/analysis_tables/` | `BIOFLUX_DATA_DIR` |
+| cross-species analysis tables | `Paper_Figures/analysis_tables/` | `BIOFLUX_CROSS_DIR` (the directory itself) |
 | measured leaf phenotype data (ICP-MS + reflectance) | `../data/E1.0_Sorghum_Poplar_ICP-MS_Spec_total.txt` | `BIOFLUX_PHENOTYPE_FILE` |
+
+`BIOFLUX_CROSS_DIR` names the tables directory directly, which is normally what
+you want:
+
+    BIOFLUX_CROSS_DIR=/path/to/cross_species_analysis_fresh \
+        micromamba run -n bf-runtime python Paper_Figures/fig_photo_etc.py
+
+`BIOFLUX_DATA_DIR` also exists but names the *parent*, under which the
+`analysis_tables/` subdirectory is then looked up.
 
 The analysis tables are derived from **both** species and the Poplar half is
 not distributed with this repository, so publishing them here would contradict
