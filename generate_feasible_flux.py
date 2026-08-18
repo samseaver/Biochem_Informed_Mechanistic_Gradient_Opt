@@ -23,8 +23,8 @@ try:
 	from modelseedpy import FlexibleBiomassPkg
 	from parameters import *
 	from cobra.flux_analysis import flux_variability_analysis as fva
-	import generateBioFeasibleFlux as gvbf
-	import prepare_model_duplication as pdm
+	from Library import Build_Vbf as gvbf
+	from Library import Prepare_Model as pdm
 	import cobra
 
 finally:

@@ -62,7 +62,7 @@ try:
 	from parameters import *
 	import cobra
 	from Library.Build_Dataset import *
-	import Build_Model_Wrapper as bmw
+	from Library import Build_Model_Wrapper as bmw
 
 finally:
 	# 3. ALWAYS restore the original stdout/stderr
@@ -173,7 +173,7 @@ if __name__ == '__main__':
 	#       reactions stay at 0 rather than being imputed at true_vbf_mean/2, so
 	#       they are recruited only where mass balance demands it; each media
 	#       chain is seeded from integration_results/media_chain_init.tsv
-	#       (build it with make_media_chain_init.py).
+	#       (build it with Library/Media_Chain.py).
 	#   -1  historical. Scored reactions start at V_bf; unscored ones imputed by
 	#       the capacity-aware ~true_vbf_mean/2 rule; no media-chain seeding.
 	#    0  no V_bf seeding, no imputation; exchange reactions set to 1000.
@@ -197,7 +197,7 @@ if __name__ == '__main__':
 	# ======================================================================
 	# get_V0's evidence-only mode needs integration_results/media_chain_init.tsv
 	# and raises FileNotFoundError without it. This used to be a separate manual
-	# step (make_media_chain_init.py run by hand), which meant a fresh clone hit a
+	# step (Library/Media_Chain.py run by hand), which meant a fresh clone hit a
 	# hard failure with no obvious cause. Build it here instead.
 	#
 	# Rebuilt on every run rather than reused if present: the table is derived
@@ -205,7 +205,7 @@ if __name__ == '__main__':
 	# media layer with capacities from a previous FVA (for instance one computed
 	# before loopless FVA was enabled).
 	if V0_init == -2:
-		from make_media_chain_init import build as build_media_chain
+		from Library.Media_Chain import build as build_media_chain
 		_fva = f"{ml_parameters.integration_folder}fva.tsv"
 		if not os.path.exists(_fva):
 			sys.exit(f"V0_init=-2 needs {_fva}; run generate_feasible_flux.py first")
