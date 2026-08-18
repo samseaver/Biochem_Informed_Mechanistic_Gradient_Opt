@@ -1,0 +1,24 @@
+             , Sbicolor Sobic.010G096300.1     SbGLK1
+           __|
+          |  |_ Zmays    Zm00001d044785_T001    
+    ______|
+   |      |__ Osativa  LOC_Os06g24070.1       
+   |      |
+   |      |_____ Bdistach Bradi1g43710.1         
+  _|
+ | |       _ Sbicolor Sobic.003G002600.1     SbGLK2
+ | |     _|
+ | |    | |___ Zmays    Zm00001d039260_T002    
+ | |____|
+ |      | ___ Bdistach Bradi2g08287.1         
+_|      ||
+ |       |___ Osativa  LOC_Os01g13740.1       
+ |
+ |     _______ Athalian AT2G20570.2            AtGLK1
+ |  __|
+ | |  |____________ Athalian AT5G44190.1            AtGLK2
+ |_|
+   |    , Ptrichoc Potri.007G136901.1     PtGLK-A
+   |____|
+        |_ Ptrichoc Potri.017G015800.2     PtGLK-B
+

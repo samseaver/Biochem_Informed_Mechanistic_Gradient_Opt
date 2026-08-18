@@ -306,7 +306,10 @@ class CONFIG:
     glk_orthologs = {
         # (species, slot) -> gene id in the abundance TSV.
         # Sorghum slots swapped 2026-08-04 so slot GLK1 = the grass "GLK1"-clade
-        # gene (Sobic.010G096300, clusters with rice Os06g24070); see glk analysis.
+        # gene (Sobic.010G096300, clusters with rice Os06g24070). The grass and
+        # eudicot GLK duplications are independent, so these labels come from the
+        # gene tree, not from the Arabidopsis ortholog call, which disagrees and
+        # is a near-tie. Evidence: data/glk_phylogeny/README.md.
         ("Poplar",  "GLK1"): "Potri.007G136901",
         ("Poplar",  "GLK2"): "Potri.017G015800",
         ("Sorghum", "GLK1"): "Sobic.010G096300",

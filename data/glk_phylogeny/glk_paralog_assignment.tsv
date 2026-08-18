@@ -1,0 +1,7 @@
+species	gene_id	paper_label	gene_tree_clade	psi_exclusive_call	psi_score	immediate_sister_in_tree	tip_branch_length
+Sorghum bicolor	Sobic.010G096300.1	SbGLK1	grass clade A	AT5G44190 / GLK2	0.38	Zm00001d044785_T001	0.06340
+Sorghum bicolor	Sobic.003G002600.1	SbGLK2	grass clade B	AT2G20570 / GLK1	0.42	Zm00001d039260_T002	0.10293
+Populus trichocarpa	Potri.007G136901.1	PtGLK-A	none (Salicaceae WGD pair)	AT2G20570 / GLK1	0.48	Potri.017G015800.2	0.05302
+Populus trichocarpa	Potri.017G015800.2	PtGLK-B	none (Salicaceae WGD pair)	AT5G44190 / GLK2	0.47	Potri.007G136901.1	0.10225
+Arabidopsis thaliana	AT2G20570.2	AtGLK1	n/a (eudicot)	-	-	AT5G44190.1	0.42907
+Arabidopsis thaliana	AT5G44190.1	AtGLK2	n/a (eudicot)	-	-	AT2G20570.2	0.67138
