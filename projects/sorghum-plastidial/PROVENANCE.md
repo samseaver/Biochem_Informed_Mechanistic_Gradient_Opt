@@ -11,19 +11,30 @@ penalty, with:
 
     BF_SPECIES=Sorghum
     BF_PROJECT=<this directory>
-    BF_PATIENCE=500  BF_MIN_DELTA=1e-3
-    --svp <p> --epochs 2500000 --seed 1786429390
+    --svp <p> --seed 1786429390
 
-`BF_PATIENCE`, `BF_MIN_DELTA` and `--epochs` were explicit at the time because
-the in-code defaults then differed; they now match, so only `BF_SPECIES`,
-`BF_PROJECT`, `--svp` and `--seed` are strictly required. **The seed matters:**
-it defaults to the wall clock, so omitting `--seed 1786429390` will not
-reproduce these numbers.
+**The seed matters:** it defaults to the wall clock, so omitting `--seed 1786429390` will not reproduce these numbers.
 
 Initialization was `V0_init = -2` (evidence-only): reactions with a transcript
-score start at their V_bf, unscored reactions start at 0, and each media chain
-is seeded from `integration_results/media_chain_init.tsv`. Result files are
-named `startVbfandZero_*` accordingly.
+score start at their V_bf, and reactions without one start at 0 rather than
+being imputed, so they are recruited only where mass balance demands flux.
+Result files are named `startVbfandZero_*` accordingly.
+
+Starting the unscored reactions at zero would strand the medium, because the
+transporters that carry it have no transcript score either. Each medium
+compound therefore reaches the plastid stroma through a short series of
+reactions — the boundary exchange, the e0/c0 transporter, then the c0/d0
+transporter — and all of them are seeded explicitly. At steady state a series
+carries one flux throughout, so every leg is set to the same value: the
+exchange's net FVA capacity, on the column matching the exchange's own
+direction, with the opposing column held at 0. That is 39 columns across the
+nine medium compounds (photon, CO2, ammonia, sulfate, phosphate, chloride,
+water in; protons and O2 out).
+
+Those values are in `integration_results/media_chain_init.tsv`, one row per
+column with its compound and role. The table is derived entirely from
+`integration_results/fva.tsv` and is rebuilt at the start of every run, so it
+cannot go stale against a re-run FVA.
 
 ## What is here, and what was dropped
 
@@ -32,26 +43,7 @@ original run used one directory per (species, penalty) so the arms could run
 concurrently without racing on shared inputs; `inputs/`, `integration_results/`
 and `ml/training/` were byte-identical across all four and are stored once here.
 
-Dropped to keep the snapshot small, all of it recomputable:
-
-| dropped | size | why |
-|---|---|---|
-| `results/*_Pout.tsv` | 9.3 MB x4 | selection matrix, derived from the model |
-| `ml/training/temp_Pout.tsv` | 9.3 MB | the same matrix again |
-| most `V_step_*.tsv` | ~450 MB/arm | only step 0 and the final step are kept |
-| most `Losses_step_*.tsv` | ~98 MB/arm | thinned to every 10,000 steps, plus the final |
-
 The full checkpoint series (every 100 steps) is not published.
-
-## Caveats
-
-- `frozen_at_step.tsv` exists for `svp_0.1` only. It is written when *every*
-  condition freezes, and the other three arms reached the 2,500,000 iteration
-  cap with non-leaf conditions still moving. All eleven Sorghum leaf conditions
-  froze in every arm; the per-condition freeze steps are in the run logs.
-- `cobraname` and `mediumname` inside `training.npz` are absolute paths from the
-  original run directory and no longer resolve. Every numeric array in that file
-  is identical across the four arms and unaffected.
 
 ## Check
 
