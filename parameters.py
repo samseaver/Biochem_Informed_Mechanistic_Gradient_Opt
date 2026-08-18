@@ -8,23 +8,28 @@ sys.path.append(project_root)
 
 # --- Global Species Configuration ---
 # Toggle the active species here to automatically synchronize all downstream VBF and ML paths
-ACTIVE_SPECIES = os.environ.get("BF_SPECIES", "Poplar")  # edit here, or override with BF_SPECIES=Sorghum
+ACTIVE_SPECIES = os.environ.get("BF_SPECIES", "Sorghum")  # edit here, or override with BF_SPECIES=Poplar
 
 if ACTIVE_SPECIES == "Poplar":
     GLOBAL_SPC = "Poplar"
-    GLOBAL_PROJECT_FOLDER = "projects/qpsi-260406-plastid-poplar/"
+    GLOBAL_PROJECT_FOLDER = "projects/poplar-plastidial/"
     GLOBAL_BASE_MODEL = "plastidial-Ptrichocarpa-v4.1-reconstruction_fixed"
 elif ACTIVE_SPECIES == "Sorghum":
     GLOBAL_SPC = "Sorghum"
-    GLOBAL_PROJECT_FOLDER = "projects/qpsi-260406-plastid-sorghum/"
+    GLOBAL_PROJECT_FOLDER = "projects/sorghum-plastidial/"
     GLOBAL_BASE_MODEL = "Sbicolor-v3.1.1-plastidial-reconstruction"
 else:
     raise ValueError("Unsupported species selected. Please choose 'Poplar' or 'Sorghum'.")
 
-# Optional per-arm project directory override. Set BF_PROJECT to run several svp
-# arms of the same species concurrently without them racing on the shared
-# inputs/, integration_results/ and ml/training/ files. The directory must be a
-# self-contained copy of the species project (inputs/ + integration_results/).
+# Optional project directory override. Set BF_PROJECT to point at a different
+# copy of a species project -- for example to run several penalties
+# concurrently without them racing on the shared inputs/,
+# integration_results/ and ml/training/ files. The directory must be
+# self-contained (inputs/ + integration_results/).
+#
+# Note only sorghum-plastidial/ ships with this repository. Poplar was used in
+# the paper but its results are deposited separately; BF_SPECIES=Poplar
+# therefore needs a project directory you supply.
 _bf_project = os.environ.get("BF_PROJECT")
 if _bf_project:
     GLOBAL_PROJECT_FOLDER = _bf_project.rstrip("/") + "/"

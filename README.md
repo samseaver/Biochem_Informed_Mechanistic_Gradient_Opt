@@ -1,96 +1,175 @@
-# Welcome to the Artificial Metabolic Networks repository
+# BioFlux — transcript-constrained flux for plant plastidial metabolism
 
-This repository is entirely written in **python**. We make use of **jupyter** notebooks,
-calling custom functions libraries storing the main objects and functions used in the project. We detail here two ways of using the repo, either on **Colab** or **locally**.
+Estimates metabolic fluxes in a plastidial reconstruction by relaxing a
+transcript-derived flux vector onto a mass-balance constraint set with gradient
+descent. It does not maximise biomass, and it does not train a neural network:
+the transcript-derived vector is both the starting point and the upper bound,
+and the solver reports how much of that pattern survives being made
+mass-balanced.
 
-One can clone the git directly in a Google Drive and open the notebooks in Google Colab. This is a good way to make first testings and have a glimpse of the project.
+The approach inherits the AMN architecture and its physics-informed loss
+(Faure et al., 2023), but here the gradient descent solves for the flux vector
+`V` directly. No network weights are learned.
 
-Also, one can clone the git locally and install a **conda** environment we provide, to be used for the project once it's linked to your jupyter environment. This will provide better reproducibility than the colab install. We recommend this option for computationally costly usage of the repository.
+Accompanies the preprint on *Sorghum bicolor* and *Populus trichocarpa*
+plastidial metabolism under iron limitation.
 
-A **tutorial** is available as the notebook `Tutorial.ipynb`. This is a good place to start, going through all the detailed steps for building and training an AMN model. This step-by-step exploration of the project will take about 20 minutes to be runned.
+## Two scripts
 
-Note: For local installs, only Linux (Ubuntu 22.04) and MacOS (Monterey) have been tested, but Windows should work.
+```bash
+# 1. capacity envelope + transcript-derived flux bounds
+#    -> projects/<species>-plastidial/integration_results/{fva.tsv,vbf.tsv}
+micromamba run -n bf-runtime python generate_feasible_flux.py
 
-## Installation instructions:
+# 2. gradient descent
+#    -> projects/<species>-plastidial/ml/svp_<p>/{results,checkpoints}/
+micromamba run -n bf-runtime python predict_bioinformed_flux.py
+```
 
-### 1) Google Drive/Colab install
+Settings live in `parameters.py`. Everything else is a library.
 
-This install takes about 3 minutes, then each notebook needs 3 additional minutes to be runned.
+    generate_feasible_flux.py     step 1
+    predict_bioinformed_flux.py   step 2
+    parameters.py                 species, penalties, epochs, learning rate
+    Library/                      imported by the two scripts
+    tools/                        optional analyses, see tools/README.md
+    projects/                     inputs and results, one directory per species
 
-- **Clone the repository**
+Step 2 depends on step 1: without `integration_results/fva.tsv` it exits and
+says so. Everything else it needs, including the media-chain table described
+below, it builds itself.
 
-Open this notebook, make a copy in your own Google Drive if you want to make modifications, e.g. the path to which the repo is cloned on the drive (File > Save a copy in Drive) and follow the instructions:
+### Reproducing the published Sorghum runs
 
-[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1AhGt8LH6MFTNToMD-VgSy25s8AgE5xDg?usp=sharing)
+`projects/sorghum-plastidial/` ships with the repository and holds the Sorghum
+half of the sweep behind the preprint, at all four mass penalties. See its
+`PROVENANCE.md`. To re-run it:
 
+```bash
+micromamba run -n bf-runtime python predict_bioinformed_flux.py \
+    --svp 2.0 --seed 1786429390
+```
 
-- **Navigate to the root of `amn_release` in your drive**
+**The seed is not optional.** It defaults to the wall clock, so omitting
+`--seed 1786429390` produces a different run. Everything else — the
+initialization, the early-stopping rule, the epoch budget — matches the
+published configuration by default.
 
- And that's it! You will have access to all notebooks. Simply double-click any notebook to open it in colab, and follow the instructions in each of them.
+Poplar was used in the paper but is not distributed here; the full sweep is
+deposited separately. `BF_SPECIES=Poplar` needs a project directory you supply.
 
-NB: Avoid costly operations in Colab. Also, a fresh environment is created for each notebook opened, expect around 3 minutes of installation each time you open a new notebook. And don't panic if you see the Colab kernel restarting automatically, it's necessary for conda to work in Colab.
+### Useful flags
 
+| | |
+|---|---|
+| `--svp X` | run one penalty instead of every value in `SVP_VALUES` |
+| `--seed N` | fix the random seed; **required to reproduce a previous run** |
+| `--epochs N` | override the iteration budget |
+| `--test` | short sweep at `TEST_EPOCHS`, writes under `ml/test/` |
+| `BF_SPECIES=` | `Sorghum` (default) or `Poplar` |
+| `BF_PROJECT=` | point at a different project directory |
+| `BF_MIN_DELTA=`, `BF_PATIENCE=` | override the early-stopping rule |
 
-### 2) Local install
+To run several penalties at once, launch one process per penalty with `--svp`
+pinned and a separate `BF_PROJECT` for each, rather than letting one process
+loop — see the concurrency note below.
 
-This install takes between 5 and 15 minutes (if you already connected jupyter and conda together, it will be shorter).
+## The mass-balance penalty
 
-- **Clone** the git ([how to clone a git repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository))
+The loss has two terms in tension: how far the fluxes sit below their
+transcript-derived ceilings, and how badly mass balance is violated. The
+penalty `p` weights the second against the first, and `SVP_VALUES` in
+`parameters.py` sets which values to run. It defaults to `[2.0]`, the operating
+point adopted in the paper.
 
-- Install a distribution of **conda** if not already installed ([how to install conda](https://conda.io/projects/conda/en/latest/user-guide/install/index.html#regular-installation))
+Raising `p` tightens mass balance and loosens the transcript fit. That trade-off
+is monotone: at converged optima a weighted objective cannot improve both, so
+seeing both improve at once is a sign that an arm has not converged rather than
+a better setting.
 
-- Import the **environment** `environment_amn.yaml` (stored at the root of the repository) with the following command:
+What `p` does **not** change is the flux pattern. Across the four penalties in
+the paper, every pairwise correlation between converged flux vectors exceeds
+0.999. What it changes is the resolution floor — the smallest flux difference
+distinguishable from the residual mass imbalance:
 
-`conda env create -n AMN --file environment_amn.yml`
+| p | Sorghum | Poplar |
+|---|---|---|
+| 0.1 | 0.337 | 0.284 |
+| 0.5 | 0.183 | 0.193 |
+| 1.0 | 0.155 | 0.172 |
+| 2.0 | 0.136 | 0.154 |
 
-NB: One can change the name 'AMN' to anything, this will be the name of your created environment.
+So `p` buys resolution, not a different answer, which is why the tightest
+setting was adopted. Exploring it is worthwhile but not free: every added value
+is another full run, and the *smaller* penalties are the slow ones — at
+`p = 0.1` the slowest condition needed 1.67 million iterations against 1.28
+million at `p = 2.0`. Run them concurrently, not serially.
 
-- Make your conda environment **accessible to jupyter**, if not already the case ([how to get conda environments in jupyter](https://towardsdatascience.com/get-your-conda-environment-to-show-in-jupyter-notebooks-the-easy-way-17010b76e874))
+## How the initial flux vector is built
 
-- When opening the project's notebooks, make sure to use the right `kernel` with 'Kernel > Change kernel' in the toolbar.
+Reactions with a transcript score start at their `V_bf`. Reactions without one
+start at zero and are recruited only where mass balance demands flux, rather
+than being imputed at a network average.
 
-## Content description:
+That leaves a gap: the transporters carrying the medium have no transcript
+score either, so zeroing everything unscored would strand the medium. Each
+medium compound reaches the stroma through a short series of reactions — the
+boundary exchange, then the e0/c0 and c0/d0 transporters — and those are seeded
+explicitly. At steady state a series carries one flux throughout, so every leg
+gets the same value: the exchange's net FVA capacity, on the column matching
+the exchange's direction, with the opposing column held at zero. That is 39
+columns across the nine medium compounds (photon, CO2, ammonia, sulfate,
+phosphate, chloride and water in; protons and O2 out).
 
-In this repository you will find different **notebooks** that have different purposes. They are all linked to a python **function-storing file**, except for the `Figures.ipynb` notebook which runs alone. Their purpose is explained hereafter.
+`get_V0()` in `Library/Build_Model.py` builds that table at the start of every
+run, from `integration_results/fva.tsv`, so it cannot go stale against a re-run
+FVA. The alternative initializations are documented alongside `V0_init` in the
+same function; the choice is a deliberate edit rather than a command-line
+option, and result files are named for it — `startVbfandZero_*` for the setting
+used here.
 
-Some **folders** store different kinds of datasets, which will be described here.
+The medium itself is hard-wired autotrophic. All nine exchanges are
+unidirectional by construction, so no organic carbon or nitrogen can enter
+under any bound setting: every carbon atom originates as CO2 and every nitrogen
+as NH3. Simulating mixotrophic or heterotrophic growth means adding or
+replacing exchange reactions, not relaxing bounds.
 
-Finally, independent **files** are in this repository for specific reasons, detailed below. 
+## Early stopping
 
-### 1) Notebooks and corresponding function files
+Each condition trains until its own loss plateaus. When a condition's relative
+improvement stays below `BF_MIN_DELTA` for `BF_PATIENCE` consecutive iterations
+it is frozen — its row of the gradient is zeroed — while the rest continue.
+Conditions do not interact during training: each one's gradient depends only on
+its own flux vector, so freezing one neither helps nor hinders the others. It
+records that one as done, and yields a per-condition convergence step rather
+than a single global stopping point.
 
-- Duplicate the two-sided and exchange reactions in a SBML model, with `Duplicate_Model.ipynb` (linked to the functions-storing python file `Duplicate_Model.py`). This notebook shows the step-by-step workflow This is mandatory before performing any neural computations with metabolic networks, so that all fluxes are positive. All steps are shown in the notebook, with details on each step of the process.
+Defaults are `patience = 500`, `min_delta = 1e-3`, as used in the paper.
+`tools/replay_early_stopping.py` chooses such a rule offline from a completed
+run's saved loss series, without retraining.
 
-- Build a suitable experimental dataset, with `Build_Experimental.ipynb` (linked to the functions-storing python file `Build_Experimental.py`). This notebook shows the step-by-step workflow for generating combinations of variables (in a Design of Experiments fashion) to be tested experimentally, then processing the raw data from plate reader runs, and finally building an appropriate growth rate training set.
+## Architecture
 
-- Build *in silico* or *in vivo* (*i.e.* with experimental measures) training sets for AMNs, with `Build_Dataset.ipynb` (linked to the functions-storing python file `Build_Dataset.py`). This notebook shows many examples of training set generations, with *in silico* simulations or *in vivo* datasets. For more detailed instructions and explanations on parameters and methods, refer to the functions-storing file and the `Tutorial.ipynb` notebook.
+`MM_QP` → `run_MM_QP` → `QP_layers`, which calls `get_V0` for the starting
+vector and then `Gradient_Descent`. The descent loop calls `Loss_all` each
+iteration, summing the mass-balance term (`Loss_SV`), the transcript-ceiling
+term (`Loss_Vout_constraint`), the medium bound (`Loss_Vin`), positivity
+(`Loss_Vpos`) and a complementarity loop-law penalty (`Loss_loop`, always on at
+lambda_c = 0.01) that suppresses futile cycles between duplicated reversible
+pairs. After each update a proportional soft clamp holds every reversible pair
+at or below 1.10 × its `V_bf`.
 
-- Build AMN models, train them and record their performance, with all notebooks starting with `Build_Model_` (linked to the functions-storing python file `Build_Model.py`). These notebooks shows many examples of models generation and training, with *in silico* or *in vivo* training sets. For more detailed instructions and explanations on parameters and methods, refer to the functions-storing file and the `Tutorial.ipynb` notebook. A variety of notebooks are available, each designed for a specific model type. The suffixes correspond to: `MM` for mechanistic models (no learning), `ANN_Dense` for classical dense neural networks, `AMN` for the hybrid models we developed in this project, and `RC` for the reservoir computing framework to use on top of a trained AMN.
+## Installation
 
-- Making figures, with `Figures.ipynb` (standalone jupyter notebook). This notebook simply generates the figures shown in the research paper of the AMN project. It is a standalone notebook that isn't linked to any function-storing file.
+See `requirements-runtime.txt` for pinned versions and the micromamba recipe.
+Python 3.11, TensorFlow 2.15, cobra 0.31.
 
-NB: All function-storing python files are under the folder `/Library`.
+ModelSEEDPy and cobrakbase are **not** pip-installed; both scripts load them
+from local checkouts via `sys.path.append`, and those paths are currently
+hardcoded. Adjust them at the top of `predict_bioinformed_flux.py` and
+`generate_feasible_flux.py`.
 
-### 2) Data storing folders
+## Reference
 
-- `Dataset_experimental` containing all **experimental** data used for the AMN research paper. It contains raw data (`_data.csv` suffix), companion files for processing the raw data (`_start_stop.csv` and `_compos.csv` suffixes) and processed data (`_results.csv` suffix). It also contains raw compositions generated in a Design of Experiments fashion (`compositions_` prefix). Finally, here is stored the final dataset used in the AMN research paper, called `EXP110.csv`.
-
-- `Dataset_input` containing files for **guiding** the generation of training sets. It contains the models (`.xml` extension) and associated files for guiding the generation of training sets with corresponding models (`.csv` extension). It also contains solutions to be used with cobrapy (when performing reservoir computing, extracting the exchange reactions predicted bounds), for practical reasons. Note that models must be saved since a reduction of the model can be performed in `Build_Dataset.ipynb`.
-
-- `Dataset_model` containing **training sets** (`.npz` extension) and associated model files (`.xml` extension). The filenames are built as follows: name of the metabolic model used to generate the training set + type of bound + number of elements in the training set.
-
-- `Reservoir` contains **trained models** (`.h5` extension) and corresponding model **hyper-parameters** files (`.csv` extension). The filenames are built as follows: name of the metabolic model used to generate the training set + type of bound + number of elements in the training set + model type for learning.
-
-- `Result` contains various **raw data** files used to generate figures in the `Figures.ipynb` notebook. One can refer directly to this notebook to know how each data file is used.
-
-NB: `/Library` is only storing function-storing python files, `/Figures` is only storing figures.
-
-### 3) Independent files
-
-- `README.md` is the file you are reading.
-
-- `LICENSE` gives an MIT licensing to the project.
-
-- `environment_amn.yml` is the file to create an appropriate conda environment for a **local** install. It has exactly the same packages and versions than the environment used to develop this project.
-
-- `environment_amn_light.yml` is the file to create an appropriate conda environment for a **colab** install. It has just a few packages that are not present by default in colab, and needed for this project.
+Faure, L., et al. (2023). A neural-mechanistic hybrid approach improving the
+predictive power of genome-scale metabolic models. *Nature Communications*.
