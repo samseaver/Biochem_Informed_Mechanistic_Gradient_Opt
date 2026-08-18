@@ -123,6 +123,13 @@ with a plain file-not-found if they are absent:
 |---|---|---|
 | cross-species analysis tables | `Paper_Figures/analysis_tables/` | `BIOFLUX_CROSS_DIR` (the directory itself) |
 | measured leaf phenotype data (ICP-MS + reflectance) | `../data/E1.0_Sorghum_Poplar_ICP-MS_Spec_total.txt` | `BIOFLUX_PHENOTYPE_FILE` |
+| PlantSEED checkout at tag **v2.5** | `../../PlantSEED` | `BIOFLUX_PLANTSEED_DIR` |
+| RNASeq_Enzyme_Abundance project dir at tag **bioflux-preprint-260813** | `../../RNASeq_Enzyme_Abundance/projects/qpsi-plastidial` | `BIOFLUX_RNASEQ_DIR` |
+
+The last two are sibling repositories; see `requirements-runtime.txt`. Neither
+is a Python package, so unlike ModelSEEDPy and cobrakbase they cannot be
+pip-installed -- clone and point the variable at the checkout. Each raises a
+message naming its variable if absent, rather than a bare file-not-found.
 
 `BIOFLUX_CROSS_DIR` names the tables directory directly, which is normally what
 you want:

@@ -25,6 +25,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from find_limiting_genes import load_molar
 import carbon_flow as cf
+import io_utils
 
 SPECIES = ["Sorghum", "Poplar"]
 OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "tables")
@@ -67,7 +68,7 @@ def abstract_enzyme_map():
     subsystems (pathways) keep their own name and are absent from this map.
     """
     by_sub = collections.defaultdict(set)
-    for r in json.load(open(cf._ROLES)):
+    for r in json.load(open(io_utils.plantseed_roles())):
         ae = r.get("abstract_enzyme")
         if not ae:
             continue

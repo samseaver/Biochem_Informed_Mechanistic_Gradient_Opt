@@ -23,6 +23,26 @@
 modelseedpy @ git+https://github.com/ModelSEED/ModelSEEDPy.git@d109a897ac4b22c8ae2a78c963ad6ce01af9ce6a
 cobrakbase @ git+https://github.com/Fxe/cobrakbase.git@42075fbfdadaf9d32a5f1493d7b68e705f99c0f8
 
+# --- Data dependencies, not installable ------------------------------------
+# The figure scripts (Paper_Figures/) additionally need two sibling
+# repositories. Neither is a Python package, so neither can be pip-installed;
+# clone them and set the env var, or place them beside this repository under
+# the default names below.
+#
+#   ModelSEED/PlantSEED @ tag v2.5 (commit 212b817)
+#     git clone --branch v2.5 https://github.com/ModelSEED/PlantSEED
+#     BIOFLUX_PLANTSEED_DIR=<checkout root>     default: ../PlantSEED
+#     supplies Data/PlantSEED_v3/PlantSEED_Roles.json (reaction -> subsystem).
+#     The file is under PlantSEED_v3/ even at tag v2.5; both dirs exist there.
+#
+#   samseaver/RNASeq_Enzyme_Abundance @ tag bioflux-preprint-260813
+#     BIOFLUX_RNASEQ_DIR=<checkout>/projects/qpsi-plastidial
+#     default: ../RNASeq_Enzyme_Abundance/projects/qpsi-plastidial
+#     supplies {Poplar,Sorghum}_reaction_molar_fractions.tsv (gene -> reaction)
+#     and rnaseq-data/{Poplar,Sorghum}_raw_genes_tmm_mean.tsv[.xz].
+#
+# Neither is needed to run the solver -- only to regenerate the figures.
+
 # --- Pinned versions actually installed ------------------------------------
 chemicals==1.5.2
 ChemW==0.3.5

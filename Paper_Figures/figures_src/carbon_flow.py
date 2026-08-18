@@ -38,7 +38,9 @@ _PROJ = f"{_REPO}/Biochem_Informed_Mechanistic_Gradient_Opt/projects"
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                 "figures_src"))
 from io_utils import fresh_arm_dir            # noqa: E402
-_ROLES = "/scratch/seaver/Claude_Projects/plantseed-v3/PlantSEED/Data/PlantSEED_v3/PlantSEED_Roles.json"
+import io_utils                              # noqa: E402
+# PlantSEED_Roles.json, resolved at call time via BIOFLUX_PLANTSEED_DIR.
+# See io_utils.plantseed_roles(): ModelSEED/PlantSEED at tag v2.5.
 
 TIMEPOINTS = ["2d", "4d", "7d", "14d", "21d"]
 TREATMENTS = ["Control", "FeLim"]
@@ -174,7 +176,7 @@ def subsystem_map() -> dict:
     global _SUBSYS
     if _SUBSYS is None:
         m = collections.defaultdict(set)
-        for r in json.load(open(_ROLES)):
+        for r in json.load(open(io_utils.plantseed_roles())):
             for rxn in r.get("reactions", []):
                 for s in r.get("subsystems", []):
                     m[base_rxn(rxn)].add(s)
@@ -184,7 +186,7 @@ def subsystem_map() -> dict:
 
 def role_map() -> dict:
     rmap = {}
-    for r in json.load(open(_ROLES)):
+    for r in json.load(open(io_utils.plantseed_roles())):
         for rxn in r.get("reactions", []):
             rmap.setdefault(base_rxn(rxn), r.get("role", ""))
     return rmap

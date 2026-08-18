@@ -38,7 +38,10 @@ import pandas as pd
 # Paths and constants
 # ---------------------------------------------------------------------------
 _REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-_RNA  = "/scratch/seaver/Claude_Projects/RNASeq-Review/RNASeq_Enzyme_Abundance/projects/qpsi-plastidial"
+# RNASeq inputs, resolved at import via BIOFLUX_RNASEQ_DIR.
+# See io_utils.rnaseq_dir(): RNASeq_Enzyme_Abundance @ bioflux-preprint-260813.
+import io_utils
+_RNA  = io_utils.rnaseq_dir()
 
 MOLAR = {
     "Poplar":  f"{_RNA}/integration_results/Poplar_reaction_molar_fractions.tsv",
@@ -48,8 +51,8 @@ TMM = {
     "Poplar":  f"{_RNA}/rnaseq-data/Poplar_raw_genes_tmm_mean.tsv",
     "Sorghum": f"{_RNA}/rnaseq-data/Sorghum_raw_genes_tmm_mean.tsv.xz",
 }
-CURATED_FLUX = f"{_REPO}/svp_analysis/cross_species_analysis_fresh/curated_flux_both_species.tsv"
-OUT_TSV      = f"{_REPO}/svp_analysis/cross_species_analysis_fresh/limiting_genes_ranking.tsv"
+CURATED_FLUX = os.path.join(io_utils.cross_species_dir(), "curated_flux_both_species.tsv")
+OUT_TSV      = os.path.join(io_utils.cross_species_dir(), "limiting_genes_ranking.tsv")
 
 DRIVER_RXNS = {
     "rxn20632": ("ETC",    "PSII"),

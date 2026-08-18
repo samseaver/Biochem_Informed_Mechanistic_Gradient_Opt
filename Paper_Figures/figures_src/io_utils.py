@@ -46,6 +46,66 @@ def data_dir(override: str | None = None) -> str:
     return os.environ.get("BIOFLUX_DATA_DIR", _DEFAULT_DATA_DIR)
 
 
+# ==== EXTERNAL DATA DEPENDENCIES ==================================
+#
+# Two inputs come from sibling repositories rather than from this one. Both
+# are resolved through an env var with a sibling-checkout default, and both
+# raise a message naming the variable if they are missing, rather than a bare
+# FileNotFoundError on a path that means nothing to the reader.
+
+_REPO_ROOT = os.path.normpath(
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..")
+)
+
+
+def plantseed_roles(override: str | None = None) -> str:
+    """Path to PlantSEED_Roles.json (reaction -> subsystem).
+
+    ModelSEED/PlantSEED at tag **v2.5** (commit 212b817). PlantSEED is a data
+    repository with no setup.py, so unlike ModelSEEDPy and cobrakbase it cannot
+    be pip-installed -- clone it and point BIOFLUX_PLANTSEED_DIR at the
+    checkout root:
+
+        git clone --branch v2.5 https://github.com/ModelSEED/PlantSEED
+
+    Note the file lives under Data/PlantSEED_v3/ even at tag v2.5; both
+    directories exist at that tag.
+    """
+    if override:
+        return os.path.abspath(override)
+    root = os.environ.get("BIOFLUX_PLANTSEED_DIR",
+                          os.path.join(_REPO_ROOT, "PlantSEED"))
+    path = os.path.join(root, "Data", "PlantSEED_v3", "PlantSEED_Roles.json")
+    if not os.path.exists(path):
+        raise FileNotFoundError(
+            "PlantSEED_Roles.json not found at %s.\n"
+            "Clone ModelSEED/PlantSEED at tag v2.5 and set BIOFLUX_PLANTSEED_DIR "
+            "to the checkout root." % path)
+    return path
+
+
+def rnaseq_dir(override: str | None = None) -> str:
+    """Path to the RNASeq project directory supplying transcript inputs.
+
+    samseaver/RNASeq_Enzyme_Abundance at tag **bioflux-preprint-260813**, the
+    projects/qpsi-plastidial directory inside it. Supplies the reaction molar
+    fractions (gene -> reaction associations) and the per-gene TMM tables.
+    Override with BIOFLUX_RNASEQ_DIR.
+    """
+    if override:
+        return os.path.abspath(override)
+    d = os.environ.get("BIOFLUX_RNASEQ_DIR",
+                       os.path.join(_REPO_ROOT, "RNASeq_Enzyme_Abundance",
+                                    "projects", "qpsi-plastidial"))
+    if not os.path.isdir(d):
+        raise FileNotFoundError(
+            "RNASeq project directory not found at %s.\n"
+            "Clone samseaver/RNASeq_Enzyme_Abundance at tag "
+            "bioflux-preprint-260813 and set BIOFLUX_RNASEQ_DIR to its "
+            "projects/qpsi-plastidial directory." % d)
+    return d
+
+
 #: Default sub-directory name for the cross-species analysis TSV layer.
 #: Override via the ``BIOFLUX_CROSS_DIR`` env var (either an absolute path
 #: or a sibling name like ``"cross_species_analysis"`` to read the legacy

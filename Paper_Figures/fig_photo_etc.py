@@ -144,6 +144,7 @@ from style import apply_style, SPECIES_COLORS, get_dpi
 # (species, svp, min_delta). io_utils is the single resolver; see its header
 # for the BIOFLUX_MIN_DELTA / BIOFLUX_LEGACY_LAYOUT overrides.
 from io_utils import fresh_arm_dir
+import io_utils
 
 
 # ==== CONFIG (edit me) ============================================
@@ -298,7 +299,8 @@ class CONFIG:
     # Two GLK-family orthologs per species, predicted by cross-species
     # ortholog analysis to be the master regulators of the nuclear-
     # encoded photosynthesis regulon.
-    _RNASEQ_BASE = "/scratch/seaver/Claude_Projects/RNASeq-Review/RNASeq_Enzyme_Abundance/projects/qpsi-plastidial/rnaseq-data"
+    # Per-gene TMM tables; resolved via BIOFLUX_RNASEQ_DIR.
+    _RNASEQ_BASE = os.path.join(io_utils.rnaseq_dir(), "rnaseq-data")
     glk_data_paths = {
         "Poplar":  f"{_RNASEQ_BASE}/Poplar_raw_genes_tmm_mean.tsv",
         "Sorghum": f"{_RNASEQ_BASE}/Sorghum_raw_genes_tmm_mean.tsv.xz",
