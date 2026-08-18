@@ -25,9 +25,9 @@ same name as its output.
 | `fig_norm_benefit.png` | 7 — pool-normalized reallocation | `fig_norm_benefit.py` |
 
 `.svg` siblings are included where a vector version exists. LaTeX builds
-against the `.png`/`.jpg` files only; the SVGs, `fig_bio_rslt_p2.0.png` (a
-single-penalty variant) and `fig_score_method.jpg` (superseded by
-`fig_score_method2.png`) are not referenced by the manuscript.
+against the `.png`/`.jpg` files only, so the four SVGs are not referenced by
+the manuscript; they are kept in case a production process wants vector art.
+Everything else here is used.
 
 `fig_ml_rslt_base.py` is not a figure generator on its own: it holds the shared
 plotting machinery — the config, the data loaders, and panels 1–5 — that
