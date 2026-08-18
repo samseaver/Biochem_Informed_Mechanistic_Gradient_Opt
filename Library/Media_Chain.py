@@ -9,10 +9,10 @@ set to 0.
 
 Writes <project>/integration_results/media_chain_init.tsv
 
-predict_bioinformed_flux.py calls build() itself whenever V0_init == -2, so
-this does not normally need running by hand. Kept runnable standalone for
-inspecting the table -- `python -m Library.Media_Chain <project_folder>`
-prints the chain it would write.
+get_V0() in Library/Build_Model.py calls build() itself at the start of every
+V0_init == -2 run, so this never needs running by hand. Kept runnable
+standalone for inspecting the table -- `python -m Library.Media_Chain
+<project_folder>` prints the chain it would write.
 """
 import glob, os, sys
 import xml.etree.ElementTree as ET
