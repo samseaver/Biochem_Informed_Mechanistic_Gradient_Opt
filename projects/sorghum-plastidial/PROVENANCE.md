@@ -29,7 +29,7 @@ README for how that table is constructed.
 ## What is here, and what was dropped
 
 Layout is one project directory with the four penalties under `ml/`. The
-original run used one directory per (species, penalty) so the arms could run
+original sweep used one directory per (species, penalty) so the runs could go
 concurrently without racing on shared inputs; `inputs/`, `integration_results/`
 and `ml/training/` were byte-identical across all four and are stored once here.
 
@@ -38,7 +38,7 @@ The full checkpoint series (every 100 steps) is not published.
 ## Check
 
 The resolution floor, sqrt(mean Leaf Mass_Loss / p), recomputed from the final
-`Losses_step_*.tsv` of each arm, reproduces the published values:
+`Losses_step_*.tsv` of each penalty, reproduces the published values:
 
 | p | floor |
 |---|---|

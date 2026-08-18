@@ -53,7 +53,7 @@ TREATMENT_FILTERS = ("Control", "FeLim")
 # the slow ones (at p = 0.1 the slowest condition needed 1.67e6 iterations
 # against 1.28e6 at p = 2.0). Running four values serially in one process takes
 # roughly four times as long as one; the preprint sweep instead launched one
-# process per (species, p) with --svp pinned, so the arms ran concurrently.
+# process per (species, p) with --svp pinned, so the runs went concurrently.
 #
 # What p buys is a trade-off between the two loss terms: raising it tightens
 # mass balance and loosens the transcript fit. See the README.

@@ -14,7 +14,7 @@ point adopted in the paper.
 
 Raising `p` tightens mass balance and loosens the transcript fit. That trade-off
 is monotone: at converged optima a weighted objective cannot improve both, so
-seeing both improve at once is a sign that an arm has not converged rather than
+seeing both improve at once is a sign that a run has not converged rather than
 a better setting.
 
 What `p` does **not** change is the flux pattern. Across the four penalties in

@@ -1,18 +1,40 @@
-# BioFlux — transcript-constrained flux for plant plastidial metabolism
+# Biochem_Informed_Mechanistic_Gradient_Opt (BioFlux)
 
-Estimates metabolic fluxes in a plastidial reconstruction by relaxing a
-transcript-derived flux vector onto a mass-balance constraint set with gradient
-descent. It does not maximise biomass, and it does not train a neural network:
-the transcript-derived vector is both the starting point and the upper bound,
-and the solver reports how much of that pattern survives being made
-mass-balanced.
+Mechanistic loss function and gradient descent for the plastidial metabolism of
+*Sorghum bicolor* (BTx623) and *Populus trichocarpa* (Nisqually-1) under iron
+limitation.
 
+## Preprint
+
+**Simulating Iron Deficiency in Plant Plastidial Metabolism With a Flexible
+Neural-Mechanistic Hybrid Approach**
+
+El Alaoui, S., Henry, C. S., Blaby-Haas, C., Paape, T., Xie, M., and
+Seaver, S. M. bioRxiv, version 2, posted 2026-08-17.
+<https://doi.org/10.1101/2025.06.10.658179>
+
+## Context
+
+This repository estimates metabolic fluxes by relaxing a transcript-derived
+flux vector onto a mass-balance constraint set with gradient descent. It is one
+of three components:
+
+| | |
+|---|---|
+| Genome annotation and reconstruction | [ModelSEED/PlantSEED](https://github.com/ModelSEED/PlantSEED) at tag **`v2.5`** |
+| Transcript processing and reaction scores | [samseaver/RNASeq_Enzyme_Abundance](https://github.com/samseaver/RNASeq_Enzyme_Abundance) |
+| **Mechanistic loss function and gradient descent** | **this repository** |
+
+PlantSEED supplies the plastidial reconstruction, RNASeq_Enzyme_Abundance turns
+transcript abundances into the per-reaction capacity estimates ($V_{bf}$) that
+bound the fluxes, and this repository solves for the fluxes themselves.
+
+It does not maximise biomass, and it does not train a neural network: the
+transcript-derived vector is both the starting point and the upper bound, and
+the solver reports how much of that pattern survives being made mass-balanced.
 The approach inherits the AMN architecture and its physics-informed loss
 (Faure et al., 2023), but here the gradient descent solves for the flux vector
 `V` directly. No network weights are learned.
-
-Accompanies the preprint on *Sorghum bicolor* and *Populus trichocarpa*
-plastidial metabolism under iron limitation.
 
 ## Two scripts
 
@@ -98,7 +120,7 @@ from local checkouts via `sys.path.append`, and those paths are currently
 hardcoded. Adjust them at the top of `predict_bioinformed_flux.py` and
 `generate_feasible_flux.py`.
 
-## Reference
+## Reference — the AMN architecture
 
 Faure, L., et al. (2023). A neural-mechanistic hybrid approach improving the
 predictive power of genome-scale metabolic models. *Nature Communications*.

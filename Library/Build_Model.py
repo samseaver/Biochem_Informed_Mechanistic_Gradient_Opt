@@ -280,7 +280,7 @@ def Loss_SV(V, S, gradient=False, save=None):
     <checkpoint_dir>/sv_loss.csv, overwritten each time, with the step it came
     from recorded in the header so a stale file cannot be mistaken for the
     final one. Previously this went to a bare 'sv_loss.csv' in the working
-    directory, which the concurrent arms of a sweep overwrote in turn, leaving
+    directory, which the concurrent runs of a sweep overwrote in turn, leaving
     one unattributable snapshot. The companion sv_lossNorm.csv is no longer
     written: it is the per-condition aggregate, already recorded per step as
     the Mass_Loss column of Losses_step_*.tsv.
@@ -571,7 +571,7 @@ def Gradient_Descent(V, Vin, Vout, Vlb, parameter, mask, trainable=True, history
     frozen         = np.zeros(n_cond, dtype=bool)
     frozen_at_step = np.full(n_cond, -1, dtype=int)
     # CLAUDE 2026-08-10: both are overridable from the environment so a single
-    # arm can be re-run with a different stopping rule without editing (and
+    # run can be repeated with a different stopping rule without editing (and
     # having to remember to revert) the defaults. Unset env -> published values.
     patience_limit = int(os.environ.get("BF_PATIENCE", 500))
     min_delta      = float(os.environ.get("BF_MIN_DELTA", 1e-3))

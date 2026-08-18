@@ -24,9 +24,9 @@ def _s_matrix_path():
     """Destination for the S-matrix export, or None if there is nowhere to put it.
 
     This used to be written as a bare 's_matrix.csv' relative to the working
-    directory, so the eight concurrent arms of a sweep all wrote the same file
+    directory, so the eight concurrent runs of a sweep all wrote the same file
     and the survivor was whichever finished last. Follow BF_PROJECT -- the
-    per-arm override the sweep already sets -- so each arm writes into its own
+    per-run override the sweep already sets -- so each run writes into its own
     integration_results/ instead.
     """
     proj = os.environ.get("BF_PROJECT", "").rstrip("/")

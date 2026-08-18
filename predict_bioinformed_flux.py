@@ -32,7 +32,7 @@ _args = _argp.parse_args()
 # Using time ensures it changes every second.
 # We wrap it in int() to get a clean integer.
 #
-# PREPRINT PROVENANCE: the arms-260812 sweep behind the manuscript was run
+# PREPRINT PROVENANCE: the 2026-08-12 sweep behind the manuscript was run
 # with the fixed seed 1786429390, passed explicitly as --seed. Reproducing
 # those runs requires passing it; the wall-clock default below will not
 # reproduce them.
