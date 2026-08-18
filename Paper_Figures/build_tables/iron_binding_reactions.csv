@@ -1,0 +1,55 @@
+gene_id,locus_id,reaction_id,reaction_name,role,complex_note,raw_cofactors
+AT5G53460,AT5G53460,rxn00069_d0,rxn00069,Glutamate synthase [NADH] (EC 1.4.1.14),universal,"{[3Fe-4S], 2x [4Fe-4S], FAD}"
+AT2G30390,AT2G30390,rxn00224_d0,rxn00224,"Ferrochelatase, protoheme ferro-lyase (EC 4.99.1.1)",universal,{Fe}
+AT5G26030,AT5G26030,rxn00224_d0,rxn00224,"Ferrochelatase, protoheme ferro-lyase (EC 4.99.1.1)",universal,{Fe}
+AT3G17810,AT3G17810,rxn00720_d0,rxn00720,Dihydropyrimidine dehydrogenase (EC 1.3.1.2),universal,{Fe-S}
+AT2G16570,AT2G16570,rxn00790_d0,rxn00790,Amidophosphoribosyltransferase (EC 2.4.2.14),universal,{[4Fe-4S]}
+AT4G34740,AT4G34740,rxn00790_d0,rxn00790,Amidophosphoribosyltransferase (EC 2.4.2.14),universal,{[4Fe-4S]}
+AT4G38880,AT4G38880,rxn00790_d0,rxn00790,Amidophosphoribosyltransferase (EC 2.4.2.14),universal,{[4Fe-4S]}
+AT2G05710,AT2G05710,rxn00974_d0,rxn00974,Aconitate hydratase (EC 4.2.1.3),universal,{[4Fe-4S]}
+AT4G26970,AT4G26970,rxn00974_d0,rxn00974,Aconitate hydratase (EC 4.2.1.3),universal,{[4Fe-4S]}
+AT1G06570,AT1G06570,rxn01827_d0,rxn01827,4-hydroxyphenylpyruvate dioxygenase (EC 1.13.11.27),universal,{Fe}
+AT1G50170,AT1G50170,rxn02056_d0,rxn02056,Sirohydrochlorin ferrochelatase (EC 4.99.1.4),universal,{[2Fe-2S]}
+AT4G13430,AT4G13430,rxn02789_d0,rxn02789,3-isopropylmalate dehydratase large subunit (EC 4.2.1.33),universal,{[4Fe-4S]}
+AT4G13430,AT4G13430,rxn02811_d0,rxn02811,3-isopropylmalate dehydratase large subunit (EC 4.2.1.33),universal,{[4Fe-4S]}
+AT5G50210,AT5G50210,rxn02988_d0,rxn02988,Quinolinate synthetase (EC 2.5.1.72),universal,{[4Fe-4S]}
+AT3G23940,AT3G23940,rxn03437_d0,rxn03437,Dihydroxy-acid dehydratase (EC 4.2.1.9),universal,"{[2Fe-2S] in spinach, [2Fe-2S]catalytically active; [Fe4S4]}"
+AT3G23940,AT3G23940,rxn03437_d0,rxn03437,Dihydroxy-acid dehydratase (EC 4.2.1.9),universal,"{[4Fe-4S] in E. coli enzyme;, [2Fe-2S]catalytically active; [Fe4S4]}"
+AT1G62180,AT1G62180,rxn03983_d0,rxn03983,Adenylyl-sulfate reductase [glutathione] (EC 1.8.4.9),universal,{[4Fe-4S]}
+AT4G04610,AT4G04610,rxn03983_d0,rxn03983,Adenylyl-sulfate reductase [glutathione] (EC 1.8.4.9),universal,{[4Fe-4S]}
+AT4G34350,AT4G34350,rxn04113_d0,rxn04113,4-hydroxy-3-methylbut-2-enyl diphosphate reductase (EC 1.17.1.2),universal,{[4Fe-4S]}
+AT3G56940,AT3G56940,rxn04152_d0,rxn04152,Mg protoporphyrin IX monomethyl ester oxidative cyclase (aerobic) (EC 1.14.13.81),universal,{2x Fe}
+AT3G56940,AT3G56940,rxn04153_d0,rxn04153,Mg protoporphyrin IX monomethyl ester oxidative cyclase (aerobic) (EC 1.14.13.81),universal,{2x Fe}
+AT3G56940,AT3G56940,rxn04154_d0,rxn04154,Mg protoporphyrin IX monomethyl ester oxidative cyclase (aerobic) (EC 1.14.13.81),universal,{2x Fe}
+AT4G34350,AT4G34350,rxn04996_d0,rxn04996,4-hydroxy-3-methylbut-2-enyl diphosphate reductase (EC 1.17.1.2),universal,{[4Fe-4S]}
+AT4G34350,AT4G34350,rxn08352_d0,rxn08352,4-hydroxy-3-methylbut-2-enyl diphosphate reductase (EC 1.17.1.2),universal,{[4Fe-4S]}
+AT4G34350,AT4G34350,rxn08756_d0,rxn08756,4-hydroxy-3-methylbut-2-enyl diphosphate reductase (EC 1.17.1.2),universal,{[4Fe-4S]}
+AT4G13430,AT4G13430,rxn13975_d0,rxn13975,Methylthioalkylmalate dehydratase large subunit (EC 4.2.1.170),conditional,{[4Fe-4S]}
+AT4G13430,AT4G13430,rxn13995_d0,rxn13995,Methylthioalkylmalate dehydratase large subunit (EC 4.2.1.170),conditional,{[4Fe-4S]}
+AT4G13430,AT4G13430,rxn14059_d0,rxn14059,Methylthioalkylmalate dehydratase large subunit (EC 4.2.1.170),conditional,{[4Fe-4S]}
+AT4G13430,AT4G13430,rxn14156_d0,rxn14156,Methylthioalkylmalate dehydratase large subunit (EC 4.2.1.170),conditional,{[4Fe-4S]}
+AT4G13430,AT4G13430,rxn14248_d0,rxn14248,Methylthioalkylmalate dehydratase large subunit (EC 4.2.1.170),conditional,{[4Fe-4S]}
+AT4G13430,AT4G13430,rxn14278_d0,rxn14278,Methylthioalkylmalate dehydratase large subunit (EC 4.2.1.170),conditional,{[4Fe-4S]}
+AT2G05710,AT2G05710,rxn15280_d0,rxn15280,Aconitate hydratase (EC 4.2.1.3),universal,{[4Fe-4S]}
+AT4G26970,AT4G26970,rxn15280_d0,rxn15280,Aconitate hydratase (EC 4.2.1.3),universal,{[4Fe-4S]}
+AT3G23940,AT3G23940,rxn19544_d0,rxn19544,Dihydroxy-acid dehydratase (EC 4.2.1.9),universal,"{[2Fe-2S] in spinach, [2Fe-2S]catalytically active; [Fe4S4]}"
+AT3G23940,AT3G23940,rxn19544_d0,rxn19544,Dihydroxy-acid dehydratase (EC 4.2.1.9),universal,"{[4Fe-4S] in E. coli enzyme;, [2Fe-2S]catalytically active; [Fe4S4]}"
+AT2G15620,AT2G15620,rxn19701_d0,rxn19701,Ferredoxin--nitrite reductase (EC 1.7.7.1),universal,"{[4Fe-4S], heme, sirohaem}"
+AT2G41220,AT2G41220,rxn19828_d0,rxn19828,Ferredoxin-dependent glutamate synthase (EC 1.4.7.1),universal,"{[3Fe-4S], FMN}"
+AT5G04140,AT5G04140,rxn19828_d0,rxn19828,Ferredoxin-dependent glutamate synthase (EC 1.4.7.1),universal,"{[3Fe-4S], FMN}"
+AT4G03280,AT4G03280,rxn20595_y0,rxn20595,"Cytochrome b6-f complex PetC, Rieske iron-sulfur protein (EC 7.1.1.6)",universal,{Rieske [2Fe-2S]}
+ATCG00540,ATCG00540,rxn20595_y0,rxn20595,"Cytochrome b6-f complex PetA, apocytochrome f (EC 7.1.1.6)",universal,{Heme}
+ATCG00720,ATCG00720,rxn20595_y0,rxn20595,"Cytochrome b6-f complex PetB, cytochrome b6 (EC 7.1.1.6)",universal,{3x Heme}
+ATCG00020,ATCG00020,rxn20632_y0,rxn20632,Photosystem II protein D1 PsbA,universal,"{Fe-S, Fe}"
+ATCG00020,ATCG00020,rxn20632_y0,rxn20632,Photosystem II protein D1 PsbA,universal,"{Mn4CaO5, Fe}"
+ATCG00270,ATCG00270,rxn20632_y0,rxn20632,Photosystem II protein D2 PsbD,universal,{Fe}
+ATCG00570,ATCG00570,rxn20632_y0,rxn20632,Cytochrome b559 beta chain PsbF,universal,{heme}
+ATCG00580,ATCG00580,rxn20632_y0,rxn20632,Cytochrome b559 alpha chain PsbE,universal,{heme}
+AT2G29630,AT2G29630,rxn20643_d0,rxn20643,Hydroxymethylpyrimidine phosphate synthase ThiC (EC 4.1.99.17),universal,"{2x [4Fe-4S], [4Fe-4S]}"
+AT2G43710,AT2G43710,rxn24508_d0,rxn24508,"Putative acyl-ACP desaturase, Stearoyl-ACP desaturase (EC 1.14.19.2)",universal,{2x Fe}
+AT3G02630,AT3G02630,rxn24508_d0,rxn24508,"Putative acyl-ACP desaturase, Stearoyl-ACP desaturase (EC 1.14.19.2)",universal,{2x Fe}
+AT5G60600,AT5G60600,rxn26477_d0,rxn26477,1-hydroxy-2-methyl-2-(E)-butenyl 4-diphosphate synthase (EC 1.17.7.1),universal,{[4Fe-4S]}
+ATCG00340,ATCG00340,rxn26754_d0,rxn26754,Photosystem I subunit Ib PsaB,universal,{[4Fe-4S]with ATCG00350 known as FX}
+ATCG00350,ATCG00350,rxn26754_d0,rxn26754,Photosystem I subunit Ia PsaA,universal,{[4Fe-4S]with ATCG00340 known as FX}
+ATCG01060,ATCG01060,rxn26754_d0,rxn26754,Photosystem I subunit VII iron-sulfur center PsaC,universal,{2x [4Fe-4S]}
+AT5G04590,AT5G04590,rxn27266_d0,rxn27266,Ferredoxin--sulfite reductase (EC 1.8.7.1),universal,"{[4Fe-4S], sirohaem}"
