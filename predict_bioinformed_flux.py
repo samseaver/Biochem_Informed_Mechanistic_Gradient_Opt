@@ -14,7 +14,8 @@ import pandas as pd
 # ---- CLI ----
 # --test       run a short sweep at TEST_EPOCHS (writes under ml/test/svp_X.X/)
 # --epochs N   override epoch count explicitly
-# --svp X      run only this svp value (otherwise loops over SVP_VALUES)
+# --svp X      run only this svp value (otherwise loops over SVP_VALUES,
+#              which defaults to the single operating point 2.0)
 # --seed N     explicit seed (default: int(time.time()))
 _argp = argparse.ArgumentParser(description=__doc__)
 _argp.add_argument("--test",   action="store_true",

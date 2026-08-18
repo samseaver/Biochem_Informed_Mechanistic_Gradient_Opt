@@ -37,10 +37,22 @@ TREATMENT_FILTERS = ("Control", "FeLim")
 # --------------------------------
 
 # --- Gradient-descent sweep + budget ---
-# When predict_bioinformed_flux.py is run without --svp, it loops over these
-# values in order. Each value runs to convergence (with per-condition early
-# stopping) and writes to its own ml/svp_<value>/ subdirectory.
-SVP_VALUES   = [2.0, 1.0, 0.5, 0.1]
+# Mass-balance penalty (p) values to run. When predict_bioinformed_flux.py is
+# called without --svp it loops over this list in order; each value runs to
+# convergence, with per-condition early stopping, into its own
+# ml/svp_<value>/ subdirectory.
+#
+# The default is the single adopted operating point. Extend the list to explore
+# the penalty -- the preprint swept [2.0, 1.0, 0.5, 0.1] -- but note the cost:
+# every added value is another full training run, and the smaller penalties are
+# the slow ones (at p = 0.1 the slowest condition needed 1.67e6 iterations
+# against 1.28e6 at p = 2.0). Running four values serially in one process takes
+# roughly four times as long as one; the preprint sweep instead launched one
+# process per (species, p) with --svp pinned, so the arms ran concurrently.
+#
+# What p buys is a trade-off between the two loss terms: raising it tightens
+# mass balance and loosens the transcript fit. See the README.
+SVP_VALUES   = [2.0]
 
 EPOCHS       = int(2.5e6)      # full-budget epoch count (the published sweep)
 TEST_EPOCHS  = 5000            # used when --test is passed; ~1-2 min per svp
