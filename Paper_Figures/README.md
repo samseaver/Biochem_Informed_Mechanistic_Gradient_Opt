@@ -15,7 +15,7 @@ same name as its output.
 | Manuscript file | Figure | Generating script |
 |---|---|---|
 | `fig_method.jpg` | 1 — overall approach | none (hand-drawn diagram) |
-| `fig_score_method2.png` | 2 — reaction-score logic | none (hand-drawn diagram) |
+| `fig_score_method.png` | 2 — reaction-score logic | none (hand-drawn diagram) |
 | `fig_proteome.png` | 3 — plastid vs non-plastid abundance | in the RNASeq repo — see below |
 | `fig_scatter_rslt.png` | 4 — objective/relative reaction scores | in the RNASeq repo — see below |
 | `fig_ml_detail.png` | — ML workflow schematic | none (hand-drawn diagram) |
