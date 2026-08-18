@@ -54,6 +54,7 @@ Settings live in `parameters.py`. Everything else is a library.
     predict_bioinformed_flux.py   step 2
     parameters.py                 species, penalties, epochs, learning rate
     Library/                      imported by the two scripts
+    Paper_Figures/                the manuscript's figures and the code for them
     tools/                        optional analyses, see tools/README.md
     projects/                     inputs and results, one directory per species
 

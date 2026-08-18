@@ -29,3 +29,16 @@ projects/*/ml/*/results/*_Pout.tsv
 projects/*/ml/*/finalize/
 projects/*/ml/*/initialize/
 projects/*/ml/training/temp_Pout.tsv
+
+# ---------------------------------------------------------------------------
+# Figure inputs that are not ours to publish.
+#
+# analysis_tables/ holds the cross-species TSVs the figure scripts read. They
+# are derived from both species and the Poplar half is not distributed here,
+# so they stay local -- on this machine it is a symlink to the working copy.
+# data/ holds the measured leaf phenotype file (ICP-MS + reflectance), which
+# is experimental data, not model output.
+# Both are overridable with BIOFLUX_DATA_DIR / BIOFLUX_PHENOTYPE_FILE.
+# ---------------------------------------------------------------------------
+Paper_Figures/analysis_tables
+data/
