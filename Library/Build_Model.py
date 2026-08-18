@@ -798,7 +798,7 @@ def get_V0(inputs, parameter, targets, lower_bounds, trainable, V0_init=-2, verb
 
     V0_init values
     --------------
-    -2  "evidence-only" (CLI: --newinit). THE PUBLISHED SETTING.
+    -2  "evidence-only". THE PUBLISHED SETTING, hard-coded in predict_bioinformed_flux.py.
         * scored reactions start at their V_bf;
         * UNSCORED reactions stay at 0 -- no true_vbf_mean/2 imputation -- so
           they are recruited only where the mass-balance term demands flux;

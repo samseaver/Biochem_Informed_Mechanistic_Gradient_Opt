@@ -25,14 +25,6 @@ _argp.add_argument("--svp",    type=float, default=None,
                    help="Run only this svp value (else: loop over parameters.SVP_VALUES)")
 _argp.add_argument("--seed",   type=int, default=None,
                    help="Explicit random seed (default: int(time.time()))")
-_argp.add_argument("--newinit", action="store_true",
-                   help="Deprecated no-op: evidence-only initialization "
-                        "(V0_init=-2) is now the default. Accepted so the "
-                        "published sweep scripts keep working unchanged.")
-_argp.add_argument("--oldinit", action="store_true",
-                   help="Revert to the historical initialization (V0_init=-1): "
-                        "unscored reactions imputed at ~true_vbf_mean/2 and no "
-                        "media-chain seeding")
 _args = _argp.parse_args()
 
 # Generate a random seed
@@ -173,20 +165,23 @@ if __name__ == '__main__':
 	decay_rate = DECAY_RATE
 	svp_list   = [_args.svp] if _args.svp is not None else list(SVP_VALUES)
 
-	# Initial flux vector for the simulation. See get_V0() in Library/Build_Model.py
-	# for the full description; in brief:
-	#   -2  DEFAULT, "evidence-only". THE PUBLISHED SETTING. Scored reactions
-	#       start at V_bf; unscored reactions stay at 0 rather than being imputed
-	#       at true_vbf_mean/2, so they are recruited only where mass balance
-	#       demands it; each media chain is seeded from
-	#       integration_results/media_chain_init.tsv (make_media_chain_init.py).
-	#   -1  --oldinit, historical. Scored reactions start at V_bf; unscored ones are
-	#       imputed by the capacity-aware ~true_vbf_mean/2 rule; no media chain.
+	# Initial flux vector. Set here rather than on the command line: the method
+	# uses one initialization and changing it is a deliberate edit, not a runtime
+	# option. Full description in get_V0() in Library/Build_Model.py; in brief:
+	#   -2  THE PUBLISHED SETTING. Scored reactions start at V_bf; unscored
+	#       reactions stay at 0 rather than being imputed at true_vbf_mean/2, so
+	#       they are recruited only where mass balance demands it; each media
+	#       chain is seeded from integration_results/media_chain_init.tsv
+	#       (build it with make_media_chain_init.py).
+	#   -1  historical. Scored reactions start at V_bf; unscored ones imputed by
+	#       the capacity-aware ~true_vbf_mean/2 rule; no media-chain seeding.
 	#    0  no V_bf seeding, no imputation; exchange reactions set to 1000.
 	#   >0  flat fill: every non-negative entry set to V0_init.
 	# 'bio1' is always forced to 0.0 (hardcoded by id), and the exchange ceilings
 	# from fva.tsv are injected as a warm start, whichever value is used.
-	V0_init = -1 if _args.oldinit else -2
+	# Output files are named for this choice: startVbfandZero / startVbfandMean /
+	# startFlat<N>.
+	V0_init = -2
 
 	# Which hard constraint to set for modeling 
 	# 0: for none
