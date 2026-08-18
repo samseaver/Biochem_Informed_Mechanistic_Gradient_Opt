@@ -20,21 +20,11 @@ score start at their V_bf, and reactions without one start at 0 rather than
 being imputed, so they are recruited only where mass balance demands flux.
 Result files are named `startVbfandZero_*` accordingly.
 
-Starting the unscored reactions at zero would strand the medium, because the
-transporters that carry it have no transcript score either. Each medium
-compound therefore reaches the plastid stroma through a short series of
-reactions — the boundary exchange, the e0/c0 transporter, then the c0/d0
-transporter — and all of them are seeded explicitly. At steady state a series
-carries one flux throughout, so every leg is set to the same value: the
-exchange's net FVA capacity, on the column matching the exchange's own
-direction, with the opposing column held at 0. That is 39 columns across the
-nine medium compounds (photon, CO2, ammonia, sulfate, phosphate, chloride,
-water in; protons and O2 out).
-
-Those values are in `integration_results/media_chain_init.tsv`, one row per
-column with its compound and role. The table is derived entirely from
-`integration_results/fva.tsv` and is rebuilt at the start of every run, so it
-cannot go stale against a re-run FVA.
+Reactions without a transcript score include the transporters that carry the
+medium, so those are seeded explicitly from
+`integration_results/media_chain_init.tsv`, which is rebuilt from
+`integration_results/fva.tsv` at the start of every run. See the repository
+README for how that table is constructed.
 
 ## What is here, and what was dropped
 

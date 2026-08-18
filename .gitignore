@@ -4,3 +4,28 @@ __pycache__/
 
 # Claude Code session history (recall plugin)
 .recall/
+
+# ---------------------------------------------------------------------------
+# Run outputs under projects/
+#
+# projects/sorghum-plastidial/ is the published snapshot and IS tracked: a
+# thinned subset of checkpoints, enough to reproduce the paper's numbers. Those
+# files are already tracked, and git never ignores a tracked file, so the broad
+# patterns below only hide the untracked remainder -- the full checkpoint series
+# kept locally so the figures can be regenerated.
+#
+# Everything for Poplar is local only. The manuscript figures need both species,
+# but only Sorghum is published; the full sweep is deposited separately.
+# ---------------------------------------------------------------------------
+projects/poplar-plastidial/
+projects/qpsi-260406-plastid-*/
+projects/*.tar.gz
+
+# The un-thinned checkpoint series, and the derived matrices dropped from the
+# snapshot because they are recomputable from the model.
+projects/*/ml/*/checkpoints/V_step_*.tsv
+projects/*/ml/*/checkpoints/Losses_step_*.tsv
+projects/*/ml/*/results/*_Pout.tsv
+projects/*/ml/*/finalize/
+projects/*/ml/*/initialize/
+projects/*/ml/training/temp_Pout.tsv
