@@ -45,9 +45,6 @@ print(f"--- INITIALIZING RANDOM SEED: {seed_value} ---")
 random.seed(seed_value)
 np.random.seed(seed_value)
 
-sys.path.append('/scratch/seaver/Collaborations/Greenham_UMinn/ModelSEEDPy')
-sys.path.append('/scratch/seaver/Collaborations/Greenham_UMinn/cobrakbase')
-
 # Save the original stdout and stderr
 original_stdout = sys.stdout
 original_stderr = sys.stderr

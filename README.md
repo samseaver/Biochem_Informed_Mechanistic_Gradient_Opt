@@ -112,13 +112,22 @@ early stopping works, and the call chain through the solver.
 
 ## Installation
 
-See `requirements-runtime.txt` for pinned versions and the micromamba recipe.
-Python 3.11, TensorFlow 2.15, cobra 0.31.
+Python 3.11, TensorFlow 2.15, cobra 0.31. GLPK comes from conda-forge because
+the pip wheel does not carry the solver library `cobra` needs.
 
-ModelSEEDPy and cobrakbase are **not** pip-installed; both scripts load them
-from local checkouts via `sys.path.append`, and those paths are currently
-hardcoded. Adjust them at the top of `predict_bioinformed_flux.py` and
-`generate_feasible_flux.py`.
+```bash
+micromamba create -y -n bf-runtime -c conda-forge python=3.11 glpk
+micromamba run -n bf-runtime pip install -r requirements-runtime.txt
+```
+
+Two dependencies, ModelSEEDPy and cobrakbase, are not on PyPI. The requirements
+file installs them straight from GitHub at a pinned commit, so the command above
+is all you need — but it does mean `git` must be on your PATH and the machine
+must be able to reach github.com. If it cannot, clone the two repositories at
+those commits and `pip install --no-deps -e` each one.
+
+cobrakbase is pinned to the `cobra-model` branch rather than `master`: master
+lacks the KBase-model support this uses.
 
 ## Reference — the AMN architecture
 
