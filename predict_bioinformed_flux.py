@@ -193,6 +193,26 @@ if __name__ == '__main__':
 	hardConst = 0
 
 	# ======================================================================
+	# --- MEDIA CHAIN INITIALIZATION TABLE (V0_init == -2) ---
+	# ======================================================================
+	# get_V0's evidence-only mode needs integration_results/media_chain_init.tsv
+	# and raises FileNotFoundError without it. This used to be a separate manual
+	# step (make_media_chain_init.py run by hand), which meant a fresh clone hit a
+	# hard failure with no obvious cause. Build it here instead.
+	#
+	# Rebuilt on every run rather than reused if present: the table is derived
+	# from integration_results/fva.tsv, so a stale copy would silently seed the
+	# media layer with capacities from a previous FVA (for instance one computed
+	# before loopless FVA was enabled).
+	if V0_init == -2:
+		from make_media_chain_init import build as build_media_chain
+		_fva = f"{ml_parameters.integration_folder}fva.tsv"
+		if not os.path.exists(_fva):
+			sys.exit(f"V0_init=-2 needs {_fva}; run generate_feasible_flux.py first")
+		print("--- Building media-chain initialization table ---")
+		build_media_chain(ml_parameters.project_folder)
+
+	# ======================================================================
 	# --- DYNAMIC FVA WARM START PARSING ---
 	# ======================================================================
 	fva_file = f"{ml_parameters.integration_folder}/fva.tsv"

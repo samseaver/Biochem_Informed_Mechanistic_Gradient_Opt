@@ -8,6 +8,11 @@ So they are all initialized to the same value -- the exchange's net FVA capacity
 set to 0.
 
 Writes <project>/integration_results/media_chain_init.tsv
+
+predict_bioinformed_flux.py calls build() itself whenever V0_init == -2, so
+this does not normally need running by hand. Kept runnable standalone for
+inspecting the table -- `python make_media_chain_init.py <project_folder>`
+prints the chain it would write.
 """
 import glob, os, sys
 import xml.etree.ElementTree as ET
