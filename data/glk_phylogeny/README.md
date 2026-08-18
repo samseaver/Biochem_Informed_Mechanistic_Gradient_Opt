@@ -13,11 +13,13 @@ the opposite.
 
 ## The short version
 
-The grass and eudicot GLK duplications are **independent**. There is no 1:1
-orthology between the grass GLK1/GLK2 pair and the Arabidopsis GLK1/GLK2 pair,
-so an Arabidopsis-derived label cannot name a grass paralog. The Sorghum names
-therefore come from **which grass clade each gene falls in**, not from which
-Arabidopsis gene it scores best against.
+The grass and eudicot GLK duplications are **independent**. Neither Arabidopsis
+gene is specifically related to either grass clade — both share the same last
+common ancestor with both — so there is no 1:1 orthology to be had, and an
+Arabidopsis-derived label cannot name a grass paralog at all. Not because the
+labels come out crossed, but because the mapping does not exist. The Sorghum
+names therefore come from **which grass clade each gene falls in**, not from
+which Arabidopsis gene they score best against.
 
 - **SbGLK1** = `Sobic.010G096300` — sister to maize `Zm00001d044785`, in the
   grass clade that also holds rice `LOC_Os06g24070` and *Brachypodium*
@@ -85,31 +87,62 @@ file.
 
 ## The identity scores do NOT support the assignment
 
-`GLK_orthologs_exclusive.tsv` records the PlantSEED ortholog call. It is
-included for completeness and because it is what the figure code consumes — but
-it is not the evidence, and it disagrees with the labels for Sorghum. The
-underlying score matrix is a fully connected 2x2 with near-flat values:
+The `psi_exclusive_call` and `psi_score` columns of
+`glk_paralog_assignment.tsv` record the PlantSEED ortholog call. They are kept
+because they are the obvious thing to reach for, and because they **disagree
+with the labels for Sorghum** — so it is worth stating plainly why they do not
+settle anything.
+
+The call derives from the Arabidopsis-to-species ortholog tables
+(`data/orthologs/Ath-Sbi-Orthologs.tsv`, `Ath-Ptr-Orthologs.tsv` in PlantSEED).
+Those tables are a fully connected 2x2 with near-flat scores:
 
     AT2G20570 - Sobic.003G002600  0.42     AT2G20570 - Potri.007G136901  0.48
     AT2G20570 - Sobic.010G096300  0.41     AT2G20570 - Potri.017G015800  0.48
     AT5G44190 - Sobic.003G002600  0.39     AT5G44190 - Potri.007G136901  0.47
     AT5G44190 - Sobic.010G096300  0.38     AT5G44190 - Potri.017G015800  0.47
 
-For Sorghum the two possible 1:1 assignments tie exactly
-(0.42 + 0.38 = 0.41 + 0.39 = 0.80), so which one the exclusive filter emitted is
-arbitrary. For Poplar all four scores fall within 0.01. All four values are also
-below the monocot (0.55) and eudicot (0.60) acceptance thresholds — they were
-accepted because OrthoFinder called the pairs orthologous, not on identity.
+Every Arabidopsis GLK hits every species GLK. "Exclusive" means a 1:1
+assignment was imposed on that graph after the fact — and for Sorghum the two
+possible assignments **tie exactly** (0.42 + 0.38 = 0.41 + 0.39 = 0.80), so
+which one the filter emitted is arbitrary. The other one would have paired
+AtGLK2 with `Sobic.003G002600` and made the numbering appear to agree. For
+Poplar all four scores fall within 0.01, which is the same indistinguishability
+seen from the other side in the A/B pair.
+
+All four values are also below the PlantSEED acceptance thresholds, monocot
+0.55 and eudicot 0.60. They were accepted not on identity but because
+OrthoFinder called the pairs orthologous — the `tag O` flag in the source
+table, which is honoured regardless of score.
+
+So the assignment rests on the gene tree and the grass literature. Nothing in
+the identity scores contributes to it.
+
+### One correction on record
+
+The Sorghum slots were swapped on 2026-08-04. Before that, the figure inherited
+the exclusive filter's arbitrary pick, which had `Sobic.003G002600` in the GLK1
+slot. Since the reported +0.86 / +0.45 separation is attributed to the grass
+GLK1, the labels had to follow the grass clades, not the tie-broken Arabidopsis
+call.
 
 ## Files
 
 | | |
 |---|---|
-| `glk_paralog_assignment.tsv` | the six focal genes: label, clade, tree sister, tip branch length, and the PSI call |
+| `glk_paralog_assignment.tsv` | the six focal genes, one row each |
 | `glk_gene_tree_focal.nwk` | the 12-tip pruned tree, Newick |
 | `glk_gene_tree_focal.txt` | the same tree, rendered (reproduced above) |
-| `GLK_orthologs_exclusive.tsv` | the PlantSEED ortholog call consumed by `Paper_Figures/fig_photo_etc.py` |
-| `orthofinder_OG0003894/` | the unmodified OrthoFinder extraction the above derives from |
+
+Columns of `glk_paralog_assignment.tsv`:
+
+| | |
+|---|---|
+| `paper_label` | the name used in the manuscript and in `CONFIG.glk_orthologs` |
+| `gene_tree_clade` | which grass clade the gene falls in, or why it has none |
+| `psi_exclusive_call` / `psi_score` | the PlantSEED ortholog call — see the section above for why this is not the evidence |
+| `immediate_sister_in_tree` | the gene's immediate sister in the full 25-tip tree |
+| `tip_branch_length` | from the resolved gene tree; this is what carries the recent-duplication claim for Poplar |
 
 ## Provenance
 
@@ -117,8 +150,13 @@ OrthoFinder reference run, 15 species, 2021-05-26
 (`/scratch1/seaver/OrthoFinder_Reference/OrthoFinder/Results_May26`).
 Orthogroup OG0003894 holds all six focal GLKs plus maize, rice, *Brachypodium*,
 *Amborella*, *Spirodela*, citrus, apple, tomato and soybean copies.
-`orthofinder_OG0003894/` contains that orthogroup's resolved gene tree,
-unresolved gene tree, MSA, sequences and membership row, copied unmodified.
+`glk_gene_tree_focal.nwk` is that orthogroup's **resolved** gene tree, pruned to
+the twelve tips above with branch lengths preserved. The full 25-tip tree, the
+unresolved tree, the MSA and the orthogroup sequences are not redistributed
+here — they are OrthoFinder outputs, recoverable from the run above, and none
+of the statements in this file depend on anything beyond the pruned tree except
+the two whole-tree checks noted in the caveats, which were run against the full
+tree before it was dropped.
 
 The naming used in the figures is set by `CONFIG.glk_orthologs` in
 `Paper_Figures/fig_photo_etc.py`.
