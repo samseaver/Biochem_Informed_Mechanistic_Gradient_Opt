@@ -1,9 +1,7 @@
 import sys
 import pandas as pa
 import numpy as np
-import matplotlib.pyplot as plt
 
-import plotly.express as px
 
 avogadro = 6.02214076e+23
 

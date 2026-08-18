@@ -10,7 +10,6 @@ warnings.simplefilter(action='ignore', category=Warning)
 
 import cobra
 import numpy as np
-import matplotlib.pyplot as plt
 import requests
 
 # Functions
