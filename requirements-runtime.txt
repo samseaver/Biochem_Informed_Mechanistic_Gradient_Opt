@@ -42,6 +42,9 @@ cobrakbase @ git+https://github.com/Fxe/cobrakbase.git@42075fbfdadaf9d32a5f1493d
 #     and rnaseq-data/{Poplar,Sorghum}_raw_genes_tmm_mean.tsv[.xz].
 #
 # Neither is needed to run the solver -- only to regenerate the figures.
+#
+# The measured phenotype data (ICP-MS + reflectance) is not a dependency:
+# it ships with this repository at data/phenotype/.
 
 # --- Pinned versions actually installed ------------------------------------
 chemicals==1.5.2

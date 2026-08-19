@@ -116,15 +116,18 @@ Helper modules are vendored in `figures_src/` (`io_utils.py`, `style.py`,
 `carbon_flow.py`, `find_limiting_genes.py`), so the scripts resolve their
 imports from this directory and nothing outside it.
 
-Two inputs are **not** tracked here, and both scripts that need them will stop
-with a plain file-not-found if they are absent:
+Inputs, and where each comes from:
 
 | Input | Default location | Override |
 |---|---|---|
-| cross-species analysis tables | `Paper_Figures/analysis_cache/` | `BIOFLUX_CROSS_DIR` (the directory itself) |
-| measured leaf phenotype data (ICP-MS + reflectance) | `../data/E1.0_Sorghum_Poplar_ICP-MS_Spec_total.txt` | `BIOFLUX_PHENOTYPE_FILE` |
+| measured phenotype data (ICP-MS + reflectance) | `../data/phenotype/` — **tracked here** | `BIOFLUX_PHENOTYPE_FILE` |
+| cross-species analysis cache | `Paper_Figures/analysis_cache/` — rebuild it | `BIOFLUX_CROSS_DIR` |
 | PlantSEED checkout at tag **v2.5** | `../../PlantSEED` | `BIOFLUX_PLANTSEED_DIR` |
 | RNASeq_Enzyme_Abundance project dir at tag **bioflux-preprint-260813** | `../../RNASeq_Enzyme_Abundance/projects/qpsi-plastidial` | `BIOFLUX_RNASEQ_DIR` |
+
+The phenotype data ships with the repository; see `data/phenotype/README.md`.
+The other three are not here, and each script that needs one stops with a
+message naming its variable.
 
 The last two are sibling repositories; see `requirements-runtime.txt`. Neither
 is a Python package, so unlike ModelSEEDPy and cobrakbase they cannot be

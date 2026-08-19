@@ -36,14 +36,12 @@ projects/*/ml/training/temp_Pout.tsv
 # analysis_cache/ holds the cross-species TSVs the figure scripts read. They
 # are derived from both species and the Poplar half is not distributed here,
 # so they stay local -- on this machine it is a symlink to the working copy.
-# The measured leaf phenotype file (ICP-MS + reflectance) under data/ is
-# experimental data, not model output, so it is not tracked either.
-# Both are overridable with BIOFLUX_DATA_DIR / BIOFLUX_PHENOTYPE_FILE.
+# analysis_cache/ is overridable with BIOFLUX_CROSS_DIR.
 #
-# The rest of data/ IS tracked -- see data/glk_phylogeny/.
+# data/ is tracked in full: the GLK gene-tree evidence and the measured
+# phenotype data are both part of the published record.
 # ---------------------------------------------------------------------------
 Paper_Figures/analysis_cache
-data/E1.0_*
 
 # fig_bio_rslt.py writes one PNG per penalty; only the un-suffixed copy at the
 # operating point is the manuscript figure and is tracked.
