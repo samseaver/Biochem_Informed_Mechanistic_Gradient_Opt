@@ -31,7 +31,7 @@ import lzma
 import numpy as np
 import pandas as pd
 
-# --- path setup (build_tables/ lives one level below Paper_Figures/) --------
+# --- path setup (analysis_scripts/ lives one level below Paper_Figures/) --------
 import sys as _sys
 _HERE = os.path.dirname(os.path.abspath(__file__))
 _sys.path.insert(0, os.path.join(_HERE, "..", "figures_src"))

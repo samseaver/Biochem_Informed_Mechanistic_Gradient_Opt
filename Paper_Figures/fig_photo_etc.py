@@ -52,11 +52,11 @@ import matplotlib.pyplot as plt
 import cobra
 
 
-def _analysis_tables() -> str:
+def _analysis_cache() -> str:
     """Directory holding the cross-species analysis TSVs this deck reads.
 
     Delegates to io_utils.cross_species_dir() so every consumer resolves the
-    tables the same way: analysis_tables/ beside this file by default,
+    tables the same way: analysis_cache/ beside this file by default,
     overridable with BIOFLUX_DATA_DIR / BIOFLUX_CROSS_DIR.
 
     The tables are derived from both species, and the Poplar half is not
@@ -79,7 +79,7 @@ def _load_qualifying_tps() -> dict:
     """Return {(species, base_rxn): set_of_qualifying_timepoint_strs} loaded
     once from the central-carbon classifier output. Empty set = the reaction
     was classified but no timepoint met the defensibility criterion."""
-    path = os.path.join(_analysis_tables(), "all_central_carbon_classification.tsv")
+    path = os.path.join(_analysis_cache(), "all_central_carbon_classification.tsv")
     result = {}
     with open(path) as f:
         for row in csv.DictReader(f, delimiter='\t'):
@@ -98,7 +98,7 @@ def _load_per_tp_metrics() -> dict:
     dir_flip = the four per-p deltas are not all the same sign.
     Computed from all_central_carbon_timecourse.tsv (Leaf only)."""
     import collections as _c
-    path = os.path.join(_analysis_tables(), "all_central_carbon_timecourse.tsv")
+    path = os.path.join(_analysis_cache(), "all_central_carbon_timecourse.tsv")
     grouped = _c.defaultdict(list)
     with open(path) as f:
         for row in csv.DictReader(f, delimiter='\t'):
@@ -342,7 +342,7 @@ class CONFIG:
     # regulator", not "distinguish subunit A from subunit B".
     # (The TSV filename still says "shared9"; it holds 10 reactions
     # x 2 species.  Renaming it would break the other consumers.)
-    ratelimiting_gene_tsv = os.path.join(_analysis_tables(),
+    ratelimiting_gene_tsv = os.path.join(_analysis_cache(),
                                          "glk_regulon_shared9.tsv")
     ratelimiting_group_colors = {
         "ETC":    "#762a83",   # dark lavender — same as row-1 ETC

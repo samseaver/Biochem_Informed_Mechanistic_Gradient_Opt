@@ -55,7 +55,7 @@ Settings live in `parameters.py`. Everything else is a library.
     parameters.py                 species, penalties, epochs, learning rate
     Library/                      imported by the two scripts
     Paper_Figures/                the manuscript's figures and the code for them
-      build_tables/               rebuilds the analysis tables those scripts read
+      analysis_scripts/               rebuilds the analysis tables those scripts read
     tools/                        optional analyses, see tools/README.md
     projects/                     inputs and results, one directory per species
 

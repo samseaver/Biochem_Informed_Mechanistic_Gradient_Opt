@@ -2,7 +2,7 @@
 # Rebuild the analysis tables the manuscript figures read.
 #
 # Output goes to the directory io_utils.cross_species_dir() resolves to --
-# Paper_Figures/analysis_tables/ by default, or BIOFLUX_CROSS_DIR.
+# Paper_Figures/analysis_cache/ by default, or BIOFLUX_CROSS_DIR.
 #
 # Four scripts, in this order. The order was derived by tracing every script's
 # actual reads and writes of the table directory with a Python audit hook on

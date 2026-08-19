@@ -27,7 +27,7 @@ def _final_step(ckpt_dir):
         raise RuntimeError(f"No V_step_*.tsv checkpoints in {ckpt_dir}")
     return max(steps)
 
-# --- path setup (build_tables/ lives one level below Paper_Figures/) --------
+# --- path setup (analysis_scripts/ lives one level below Paper_Figures/) --------
 import sys as _sys
 _HERE = os.path.dirname(os.path.abspath(__file__))
 _sys.path.insert(0, os.path.join(_HERE, "..", "figures_src"))

@@ -111,7 +111,7 @@ def rnaseq_dir(override: str | None = None) -> str:
 #: or a sibling name like ``"cross_species_analysis"`` to read the legacy
 #: archive). Default ``"cross_species_analysis_fresh"`` reads the LaTeX-
 #: aligned per-svp outputs regenerated after the loss-reporting fix.
-_DEFAULT_CROSS_SUBDIR = "analysis_tables"
+_DEFAULT_CROSS_SUBDIR = "analysis_cache"
 
 
 def cross_species_dir(override: str | None = None) -> str:
