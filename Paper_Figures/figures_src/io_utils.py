@@ -440,7 +440,8 @@ def load_loss_summary_all(override_dir: str | None = None,
     source : {"fresh", "archive"}
         - ``"fresh"`` (default): read ``Biochem_*/projects/<spc>/ml/svp_X.X/run_output.txt``
           produced by the LaTeX-aligned sweep.
-        - ``"archive"``: read legacy ``svp_analysis/{prefix}_svp{tag}_output.txt``.
+        - ``"archive"``: read legacy ``{prefix}_svp{tag}_output.txt`` under
+             ``data_dir()``. Unused; nothing in this repository calls it.
     """
     rows = []
     if source == "fresh":

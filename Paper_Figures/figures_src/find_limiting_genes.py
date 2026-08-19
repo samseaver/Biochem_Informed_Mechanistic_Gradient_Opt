@@ -21,7 +21,7 @@ Rank output per (species, reaction): genes sorted by
 
 Outputs
 -------
-- svp_analysis/cross_species_analysis_fresh/limiting_genes_ranking.tsv
+- <analysis cache>/limiting_genes_ranking.tsv (io_utils.cross_species_dir())
 - top hits per (species, reaction) printed to stdout
 
 Runs cheap in memory — no model / SBML loading required.

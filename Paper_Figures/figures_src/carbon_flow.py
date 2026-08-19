@@ -21,7 +21,7 @@ computed one way. Reuses:
   - find_limiting_genes.pool_ratio_trajectory / load_molar (pool contraction)
   - PlantSEED_Roles.json subsystems (reaction -> pathway)
 Run standalone for a validation dump:
-  micromamba run -n bf-runtime python svp_analysis/carbon_flow.py Sorghum nocap-Bcomp
+  micromamba run -n bf-runtime python Paper_Figures/figures_src/carbon_flow.py Sorghum
 """
 from __future__ import annotations
 import os, re, sys, json, glob, collections
